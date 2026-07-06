@@ -21,5 +21,18 @@ assert_eq "$(cat "$tmp/r.json")" "[]" "retry agotado deja array vacio"
 # retry: stub devuelve JSON válido -> rc 0.
 assert_exit 0 bash -c ". '$HERE/../consenso.sh'; CONSENSO_CODEX_CMD='$CONSENSO_CODEX_CMD' consenso_agent_with_retry codex p '$tmp/g.json'"
 
+# retry: primera llamada basura, segunda llamada (tras recordatorio) JSON válido -> rc 0 y contenido válido en el out.
+: > "$tmp/rs.counter"
+STUB_CODEX_COUNTER="$tmp/rs.counter" \
+STUB_CODEX_OUT="basura no-json" \
+STUB_CODEX_OUT2='[{"severidad":"menor","ubicacion":"x","problema":"y","propuesta":"z"}]' \
+consenso_agent_with_retry codex "p" "$tmp/rs.json"
+rc=$?
+assert_eq "$rc" "0" "reintenta y acierta devuelve 0"
+case "$(cat "$tmp/rs.json")" in
+  *'"severidad"'*) : ;;
+  *) echo "FAIL: out no contiene el JSON valido de la 2a llamada" >&2; exit 1 ;;
+esac
+
 rm -rf "$tmp"
 echo "OK test_validate_retry"
