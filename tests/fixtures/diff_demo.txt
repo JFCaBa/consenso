@@ -1,0 +1,3 @@
++++ b/foo.py
++def foo():
++    return 1/0
