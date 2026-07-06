@@ -28,6 +28,7 @@ run_with_timeout() {
   local rc=$?
   # Si el watcher ya no existe, el comando fue matado por timeout.
   if kill -0 "$watcher" 2>/dev/null; then
+    pkill -P "$watcher" 2>/dev/null   # mata el sleep hijo mientras el watcher sigue vivo
     kill "$watcher" 2>/dev/null
     wait "$watcher" 2>/dev/null
     return "$rc"
