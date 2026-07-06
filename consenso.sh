@@ -117,9 +117,72 @@ consenso_log_append() {
   echo "$2" >> "$1/log.md"
 }
 
+# Ruta al directorio del propio script (para localizar prompts/).
+CONSENSO_HOME="$(cd "$(dirname "${BASH_SOURCE:-$0}")" && pwd)"
+
+consenso_get_diff() {
+  # $1 = workdir, $2 = (opcional) fichero de diff. Imprime el diff; 3 si vacío.
+  local workdir="$1"
+  local diff_file="${2:-}"
+  local content=""
+  if [ -n "$diff_file" ]; then
+    content="$(cat "$diff_file")"
+  else
+    content="$(git -C "$workdir" diff HEAD 2>/dev/null)"
+  fi
+  if [ -z "$content" ]; then
+    return 3
+  fi
+  printf '%s' "$content"
+}
+
+cmd_round0() {
+  local workdir="."
+  local diff_file=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --workdir) workdir="$2"; shift 2 ;;
+      --diff) diff_file="$2"; shift 2 ;;
+      *) echo "round0: opción desconocida: $1" >&2; return 64 ;;
+    esac
+  done
+
+  local diff_tmp
+  diff_tmp="$(mktemp)"
+  if ! consenso_get_diff "$workdir" "$diff_file" > "$diff_tmp"; then
+    echo "consenso: no hay cambios que revisar (diff vacío)" >&2
+    rm -f "$diff_tmp"
+    return 3
+  fi
+
+  local run_dir
+  run_dir="$(consenso_run_dir "$workdir")"
+  consenso_init_log "$run_dir" "Ronda 0 — revisión independiente"
+
+  local agent
+  for agent in codex gemini; do
+    local prompt
+    prompt="$(consenso_build_prompt "$CONSENSO_HOME/prompts/$agent.md" "$diff_tmp")"
+    if consenso_agent_with_retry "$agent" "$prompt" "$run_dir/$agent.json"; then
+      consenso_log_append "$run_dir" "- $agent: participó"
+    else
+      consenso_log_append "$run_dir" "- $agent: NO participó (salida inválida o fallo del CLI)"
+    fi
+  done
+
+  rm -f "$diff_tmp"
+  # Última línea de stdout: el run_dir, para que Claude sepa dónde leer.
+  printf '%s\n' "$run_dir"
+}
+
 main() {
-  echo "consenso: subcomando no implementado todavía" >&2
-  return 64
+  local sub="${1:-}"
+  [ $# -gt 0 ] && shift
+  case "$sub" in
+    round0) cmd_round0 "$@" ;;
+    "") echo "uso: consenso.sh <round0|debate> [opciones]" >&2; return 64 ;;
+    *) echo "consenso: subcomando desconocido: $sub" >&2; return 64 ;;
+  esac
 }
 
 # Solo ejecutar main si se invoca directamente (no al hacer source).
