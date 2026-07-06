@@ -11,6 +11,16 @@ printf '%s' '[{"a":1}]' > "$tmp/ok.json"
 assert_exit 0 consenso_validate_json "$tmp/ok.json"
 printf '%s' 'esto no es json' > "$tmp/bad.json"
 assert_exit 1 consenso_validate_json "$tmp/bad.json"
+# validate: un stream de varios arrays NO es un array único -> se rechaza.
+printf '%s' '[1,2]
+[3,4]' > "$tmp/stream.json"
+assert_exit 1 consenso_validate_json "$tmp/stream.json"
+# validate: un array vacío sí es válido (agente sin hallazgos).
+printf '%s' '[]' > "$tmp/empty.json"
+assert_exit 0 consenso_validate_json "$tmp/empty.json"
+# validate: un objeto JSON no es un array -> se rechaza.
+printf '%s' '{"a":1}' > "$tmp/obj.json"
+assert_exit 1 consenso_validate_json "$tmp/obj.json"
 
 # retry: stub devuelve basura las dos veces -> out queda en [] y rc 1.
 STUB_CODEX_OUT="basura no-json" consenso_agent_with_retry codex "p" "$tmp/r.json"

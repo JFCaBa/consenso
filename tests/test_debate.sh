@@ -36,5 +36,10 @@ log3="$(cat "$rd3/log.md")"
 assert_contains "$log3" "debate ronda 3: codex NO respondió" "el log marca a codex como NO respondió"
 assert_contains "$log3" "debate ronda 3: gemini respondió" "el log marca a gemini como respondió"
 
+# Guards de uso: un flag que espera valor pero es el último token -> rc 64 (no crash set -u).
+assert_exit 64 bash "$SCRIPT" debate --points
+assert_exit 64 bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir
+assert_exit 64 bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir" --round
+
 rm -rf "$tmp"
 echo "OK test_debate"

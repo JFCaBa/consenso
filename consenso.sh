@@ -61,8 +61,10 @@ run_agent() {
 }
 
 consenso_validate_json() {
-  # $1 = fichero. 0 si es array JSON, 1 si no.
-  if jq -e 'type=="array"' "$1" >/dev/null 2>&1; then
+  # $1 = fichero. 0 si el contenido es EXACTAMENTE un array JSON, 1 si no.
+  # -s (slurp) evita aceptar un stream de varios valores (p.ej. "[1]\n[2]"),
+  # que no es un único array aunque cada parte lo sea.
+  if jq -e -s 'length==1 and (.[0]|type=="array")' "$1" >/dev/null 2>&1; then
     return 0
   else
     return 1
