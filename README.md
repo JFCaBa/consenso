@@ -22,9 +22,10 @@ repetible y global.
 
 ## Estado
 
-Diseño aprobado. Ver
+Implementación completa e instalable: `consenso.sh` (orquestador) y el comando
+`/consenso` ya están listos para usarse (ver Instalación y Uso más abajo). Ver
+el diseño original en
 [`docs/superpowers/specs/2026-07-06-consenso-multiagente-design.md`](docs/superpowers/specs/2026-07-06-consenso-multiagente-design.md).
-Implementación pendiente.
 
 ## Requisitos
 

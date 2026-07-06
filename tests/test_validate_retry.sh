@@ -34,5 +34,24 @@ case "$(cat "$tmp/rs.json")" in
   *) echo "FAIL: out no contiene el JSON valido de la 2a llamada" >&2; exit 1 ;;
 esac
 
+# extract: salida con fence ```json ... ``` debe tolerarse (agentes reales suelen envolver así).
+fenced='```json
+[{"severidad":"menor","ubicacion":"x","problema":"fenced","propuesta":"z"}]
+```'
+STUB_CODEX_OUT="$fenced" consenso_agent_with_retry codex "p" "$tmp/fenced.json"
+rc=$?
+assert_eq "$rc" "0" "JSON con fence de codigo se acepta"
+assert_exit 0 consenso_validate_json "$tmp/fenced.json"
+assert_contains "$(cat "$tmp/fenced.json")" "fenced" "el out conserva el hallazgo del JSON con fence"
+
+# extract: salida con prosa antes del array también debe tolerarse.
+prosed='Aquí están los hallazgos:
+[{"severidad":"menor","ubicacion":"x","problema":"prosed","propuesta":"z"}]'
+STUB_CODEX_OUT="$prosed" consenso_agent_with_retry codex "p" "$tmp/prosed.json"
+rc=$?
+assert_eq "$rc" "0" "JSON con prosa delante se acepta"
+assert_exit 0 consenso_validate_json "$tmp/prosed.json"
+assert_contains "$(cat "$tmp/prosed.json")" "prosed" "el out conserva el hallazgo del JSON con prosa"
+
 rm -rf "$tmp"
 echo "OK test_validate_retry"

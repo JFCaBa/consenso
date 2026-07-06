@@ -28,5 +28,8 @@ run_dir2="$(printf '%s\n' "$out2" | tail -1)"
 assert_eq "$(cat "$run_dir2/codex.json")" "[]" "codex fallido queda en []"
 assert_contains "$(cat "$run_dir2/gemini.json")" "docstring" "gemini sigue funcionando"
 
+# --workdir sin valor (última posición): error de uso limpio, no crash por set -u.
+assert_exit 64 bash "$SCRIPT" round0 --workdir
+
 rm -rf "$tmp"
 echo "OK test_round0"

@@ -69,12 +69,43 @@ consenso_validate_json() {
   fi
 }
 
+consenso_extract_json() {
+  # $1 = fichero. Normaliza el fichero IN PLACE a un array JSON pelado,
+  # tolerando fences de código (```json ... ```) o prosa antes/después.
+  # Si ya valida como array, no toca nada. Si la extracción no produce un
+  # array válido, deja el fichero tal cual (para que el flujo de reintento
+  # y el fallback a [] sigan aplicando).
+  local file="$1"
+  if consenso_validate_json "$file"; then
+    return 0
+  fi
+  local content
+  content="$(sed '/^```/d' "$file")"
+  case "$content" in
+    *'['*']'*) : ;;
+    *) return 1 ;;
+  esac
+  local body
+  body="[${content#*[}"
+  body="${body%]*}]"
+  local tmp_extract
+  tmp_extract="$(mktemp)"
+  printf '%s' "$body" > "$tmp_extract"
+  if consenso_validate_json "$tmp_extract"; then
+    mv "$tmp_extract" "$file"
+    return 0
+  fi
+  rm -f "$tmp_extract"
+  return 1
+}
+
 consenso_agent_with_retry() {
   # $1 = agente, $2 = prompt, $3 = out_file. 0 si validó, 1 si agotó reintentos.
   local agent="$1"
   local prompt="$2"
   local out="$3"
   run_agent "$agent" "$prompt" "$out"
+  consenso_extract_json "$out"
   if consenso_validate_json "$out"; then
     return 0
   fi
@@ -83,6 +114,7 @@ consenso_agent_with_retry() {
 
 IMPORTANTE: responde EXCLUSIVAMENTE con un array JSON de hallazgos, sin texto adicional."
   run_agent "$agent" "$prompt2" "$out"
+  consenso_extract_json "$out"
   if consenso_validate_json "$out"; then
     return 0
   fi
@@ -141,8 +173,18 @@ cmd_round0() {
   local diff_file=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --workdir) workdir="$2"; shift 2 ;;
-      --diff) diff_file="$2"; shift 2 ;;
+      --workdir)
+        if [ $# -lt 2 ]; then
+          echo "round0: falta valor para --workdir" >&2
+          return 64
+        fi
+        workdir="$2"; shift 2 ;;
+      --diff)
+        if [ $# -lt 2 ]; then
+          echo "round0: falta valor para --diff" >&2
+          return 64
+        fi
+        diff_file="$2"; shift 2 ;;
       *) echo "round0: opción desconocida: $1" >&2; return 64 ;;
     esac
   done
@@ -159,16 +201,35 @@ cmd_round0() {
   run_dir="$(consenso_run_dir "$workdir")"
   consenso_init_log "$run_dir" "Ronda 0 — revisión independiente"
 
-  local agent
-  for agent in codex gemini; do
-    local prompt
-    prompt="$(consenso_build_prompt "$CONSENSO_HOME/prompts/$agent.md" "$diff_tmp")"
-    if consenso_agent_with_retry "$agent" "$prompt" "$run_dir/$agent.json"; then
-      consenso_log_append "$run_dir" "- $agent: participó"
-    else
-      consenso_log_append "$run_dir" "- $agent: NO participó (salida inválida o fallo del CLI)"
-    fi
-  done
+  # Ronda 0 corre codex y gemini EN PARALELO (spec: "en paralelo"). Cada uno
+  # escribe en su propio fichero, así que no hay colisión. Lanzamos ambos en
+  # background, esperamos a cada uno por separado y solo entonces logueamos,
+  # en orden determinista (codex, luego gemini) según el estado capturado.
+  local prompt_codex prompt_gemini
+  prompt_codex="$(consenso_build_prompt "$CONSENSO_HOME/prompts/codex.md" "$diff_tmp")"
+  prompt_gemini="$(consenso_build_prompt "$CONSENSO_HOME/prompts/gemini.md" "$diff_tmp")"
+
+  local pid_codex pid_gemini rc_codex rc_gemini
+  consenso_agent_with_retry codex "$prompt_codex" "$run_dir/codex.json" &
+  pid_codex=$!
+  consenso_agent_with_retry gemini "$prompt_gemini" "$run_dir/gemini.json" &
+  pid_gemini=$!
+
+  wait "$pid_codex"
+  rc_codex=$?
+  wait "$pid_gemini"
+  rc_gemini=$?
+
+  if [ "$rc_codex" -eq 0 ]; then
+    consenso_log_append "$run_dir" "- codex: participó"
+  else
+    consenso_log_append "$run_dir" "- codex: NO participó (salida inválida o fallo del CLI)"
+  fi
+  if [ "$rc_gemini" -eq 0 ]; then
+    consenso_log_append "$run_dir" "- gemini: participó"
+  else
+    consenso_log_append "$run_dir" "- gemini: NO participó (salida inválida o fallo del CLI)"
+  fi
 
   rm -f "$diff_tmp"
   # Última línea de stdout: el run_dir, para que Claude sepa dónde leer.
@@ -181,9 +242,24 @@ cmd_debate() {
   local round="1"
   while [ $# -gt 0 ]; do
     case "$1" in
-      --points) points_file="$2"; shift 2 ;;
-      --run-dir) run_dir="$2"; shift 2 ;;
-      --round) round="$2"; shift 2 ;;
+      --points)
+        if [ $# -lt 2 ]; then
+          echo "debate: falta valor para --points" >&2
+          return 64
+        fi
+        points_file="$2"; shift 2 ;;
+      --run-dir)
+        if [ $# -lt 2 ]; then
+          echo "debate: falta valor para --run-dir" >&2
+          return 64
+        fi
+        run_dir="$2"; shift 2 ;;
+      --round)
+        if [ $# -lt 2 ]; then
+          echo "debate: falta valor para --round" >&2
+          return 64
+        fi
+        round="$2"; shift 2 ;;
       *) echo "debate: opción desconocida: $1" >&2; return 64 ;;
     esac
   done
@@ -201,8 +277,11 @@ cmd_debate() {
 
   local agent
   for agent in codex gemini; do
-    run_agent "$agent" "$prompt" "$run_dir/debate-$round-$agent.md"
-    consenso_log_append "$run_dir" "- debate ronda $round: $agent respondió"
+    if run_agent "$agent" "$prompt" "$run_dir/debate-$round-$agent.md"; then
+      consenso_log_append "$run_dir" "- debate ronda $round: $agent respondió"
+    else
+      consenso_log_append "$run_dir" "- debate ronda $round: $agent NO respondió (fallo del CLI o timeout)"
+    fi
   done
 
   printf '%s\n' "$run_dir"
