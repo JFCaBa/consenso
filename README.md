@@ -30,3 +30,44 @@ Implementación pendiente.
 
 CLIs en modo headless: `codex` (`codex exec`), `gemini` (`gemini -p`), `claude` como
 orquestador.
+
+## Instalación
+
+```bash
+git clone https://github.com/JFCaBa/consenso
+cd consenso
+bash install.sh   # symlinka /consenso en ~/.claude/commands
+```
+
+## Uso
+
+En Claude Code, invoca `/consenso` sobre el cambio actual, o deja que Claude lo
+dispare automáticamente en puntos críticos. Por debajo:
+
+```bash
+bash consenso.sh round0 --workdir .        # revisión independiente (codex+gemini)
+bash consenso.sh debate --points p.txt --run-dir .consenso/<ts>   # ronda de debate
+```
+
+Los artefactos y el log quedan en `.consenso/<timestamp>/`.
+
+## Tests
+
+```bash
+bash tests/run.sh
+```
+
+Los tests usan stubs de los CLIs (`tests/stubs/`) — no llaman a los modelos reales.
+
+## Smoke test manual (CLIs reales)
+
+No automatizado (cuesta tokens y es no determinista). Con `codex` y `gemini`
+autenticados, sobre un repo con cambios sin commitear:
+
+```bash
+bash consenso.sh round0 --workdir /ruta/a/tu/repo
+cat /ruta/a/tu/repo/.consenso/*/codex.json
+cat /ruta/a/tu/repo/.consenso/*/gemini.json
+```
+
+Verifica que ambos devuelven un array JSON de hallazgos sobre tu diff.
