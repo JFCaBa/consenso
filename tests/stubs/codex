@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Stub de codex para tests. Comportamiento controlado por variables de entorno:
+#   STUB_CODEX_OUT     -> texto a emitir por stdout en la 1a llamada (default: JSON válido de 1 hallazgo)
+#   STUB_CODEX_OUT2    -> texto a emitir por stdout en la 2a llamada y siguientes (solo si STUB_CODEX_COUNTER está seteado; default: igual que STUB_CODEX_OUT)
+#   STUB_CODEX_COUNTER -> path a un archivo contador; si se setea, habilita la distinción 1a/2a llamada
+#   STUB_CODEX_SLEEP   -> segundos a dormir antes de responder (default 0)
+#   STUB_CODEX_RC      -> código de salida (default 0)
+# Se espera invocación: codex exec "<prompt>"
+sleep "${STUB_CODEX_SLEEP:-0}"
+
+default_out() {
+  if [ -n "${STUB_CODEX_OUT:-}" ]; then
+    printf '%s' "$STUB_CODEX_OUT"
+  else
+    printf '%s' '[{"severidad":"importante","ubicacion":"foo.py:2","problema":"division por cero","propuesta":"validar divisor"}]'
+  fi
+}
+
+if [ -n "${STUB_CODEX_COUNTER:-}" ]; then
+  count="0"
+  if [ -f "$STUB_CODEX_COUNTER" ]; then
+    count="$(cat "$STUB_CODEX_COUNTER" 2>/dev/null)"
+    [ -n "$count" ] || count="0"
+  fi
+  next=$((count + 1))
+  printf '%s' "$next" > "$STUB_CODEX_COUNTER"
+  if [ "$count" = "0" ]; then
+    default_out
+  elif [ -n "${STUB_CODEX_OUT2:-}" ]; then
+    printf '%s' "$STUB_CODEX_OUT2"
+  else
+    default_out
+  fi
+else
+  default_out
+fi
+exit "${STUB_CODEX_RC:-0}"

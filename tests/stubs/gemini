@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Stub de gemini para tests. Variables:
+#   STUB_GEMINI_OUT / STUB_GEMINI_SLEEP / STUB_GEMINI_RC (análogas al stub de codex)
+# Se espera invocación: gemini -p "<prompt>"
+sleep "${STUB_GEMINI_SLEEP:-0}"
+if [ -n "${STUB_GEMINI_OUT:-}" ]; then
+  printf '%s' "$STUB_GEMINI_OUT"
+else
+  printf '%s' '[{"severidad":"menor","ubicacion":"foo.py:1","problema":"sin docstring","propuesta":"anadir docstring"}]'
+fi
+exit "${STUB_GEMINI_RC:-0}"
