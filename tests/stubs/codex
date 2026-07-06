@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Stub de codex para tests. Comportamiento controlado por variables de entorno:
+#   STUB_CODEX_OUT   -> texto a emitir por stdout (default: JSON válido de 1 hallazgo)
+#   STUB_CODEX_SLEEP -> segundos a dormir antes de responder (default 0)
+#   STUB_CODEX_RC    -> código de salida (default 0)
+# Se espera invocación: codex exec "<prompt>"
+sleep "${STUB_CODEX_SLEEP:-0}"
+if [ -n "${STUB_CODEX_OUT:-}" ]; then
+  printf '%s' "$STUB_CODEX_OUT"
+else
+  printf '%s' '[{"severidad":"importante","ubicacion":"foo.py:2","problema":"division por cero","propuesta":"validar divisor"}]'
+fi
+exit "${STUB_CODEX_RC:-0}"
