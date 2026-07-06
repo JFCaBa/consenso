@@ -175,11 +175,45 @@ cmd_round0() {
   printf '%s\n' "$run_dir"
 }
 
+cmd_debate() {
+  local points_file=""
+  local run_dir=""
+  local round="1"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --points) points_file="$2"; shift 2 ;;
+      --run-dir) run_dir="$2"; shift 2 ;;
+      --round) round="$2"; shift 2 ;;
+      *) echo "debate: opción desconocida: $1" >&2; return 64 ;;
+    esac
+  done
+  if [ ! -f "$points_file" ] || [ -z "$run_dir" ]; then
+    echo "debate: faltan --points o --run-dir" >&2
+    return 64
+  fi
+
+  local instruccion="Estos son puntos en disputa de una revisión de código, con las críticas cruzadas de los otros revisores. Para cada punto, responde en prosa: ¿lo MANTIENES, lo REBATES o CEDES? Da un argumento técnico breve por cada uno.
+
+"
+  local points
+  points="$(cat "$points_file")"
+  local prompt="$instruccion$points"
+
+  local agent
+  for agent in codex gemini; do
+    run_agent "$agent" "$prompt" "$run_dir/debate-$round-$agent.md"
+    consenso_log_append "$run_dir" "- debate ronda $round: $agent respondió"
+  done
+
+  printf '%s\n' "$run_dir"
+}
+
 main() {
   local sub="${1:-}"
   [ $# -gt 0 ] && shift
   case "$sub" in
     round0) cmd_round0 "$@" ;;
+    debate) cmd_debate "$@" ;;
     "") echo "uso: consenso.sh <round0|debate> [opciones]" >&2; return 64 ;;
     *) echo "consenso: subcomando desconocido: $sub" >&2; return 64 ;;
   esac
