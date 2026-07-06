@@ -91,6 +91,32 @@ IMPORTANTE: responde EXCLUSIVAMENTE con un array JSON de hallazgos, sin texto ad
   return 1
 }
 
+consenso_run_dir() {
+  # $1 = workdir. Imprime y crea <workdir>/.consenso/<timestamp>.
+  local workdir="$1"
+  local ts="${CONSENSO_TIMESTAMP:-$(date +%Y-%m-%d-%H%M%S)}"
+  local dir="$workdir/.consenso/$ts"
+  mkdir -p "$dir"
+  printf '%s' "$dir"
+}
+
+consenso_init_log() {
+  # $1 = run_dir, $2 = titulo.
+  local dir="$1"
+  local titulo="$2"
+  {
+    echo "# Consenso — $titulo"
+    echo ""
+    echo "Directorio: $dir"
+    echo ""
+  } > "$dir/log.md"
+}
+
+consenso_log_append() {
+  # $1 = run_dir, $2 = texto.
+  echo "$2" >> "$1/log.md"
+}
+
 main() {
   echo "consenso: subcomando no implementado todavía" >&2
   return 64
