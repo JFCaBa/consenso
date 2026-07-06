@@ -60,6 +60,37 @@ run_agent() {
   esac
 }
 
+consenso_validate_json() {
+  # $1 = fichero. 0 si es array JSON, 1 si no.
+  if jq -e 'type=="array"' "$1" >/dev/null 2>&1; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+consenso_agent_with_retry() {
+  # $1 = agente, $2 = prompt, $3 = out_file. 0 si validó, 1 si agotó reintentos.
+  local agent="$1"
+  local prompt="$2"
+  local out="$3"
+  run_agent "$agent" "$prompt" "$out"
+  if consenso_validate_json "$out"; then
+    return 0
+  fi
+  # Reintento con recordatorio de formato.
+  local prompt2="$prompt
+
+IMPORTANTE: responde EXCLUSIVAMENTE con un array JSON de hallazgos, sin texto adicional."
+  run_agent "$agent" "$prompt2" "$out"
+  if consenso_validate_json "$out"; then
+    return 0
+  fi
+  echo "salida no-JSON tras reintento; agente tratado como no participante" > "$out.err"
+  printf '%s' "[]" > "$out"
+  return 1
+}
+
 main() {
   echo "consenso: subcomando no implementado todavía" >&2
   return 64
