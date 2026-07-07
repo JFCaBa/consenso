@@ -29,8 +29,12 @@ el diseño original en
 
 ## Requisitos
 
-CLIs en modo headless: `codex` (`codex exec`), `gemini` (`gemini -p`), `claude` como
-orquestador.
+CLIs en modo headless: `codex` (`codex exec`), `agy` (`agy --model "Gemini …" -p`,
+sucesor del deprecado `gemini` CLI; provee la lente "gemini"/arquitectura con un
+modelo Gemini), `claude` como orquestador.
+
+Overrides: `CONSENSO_GEMINI_CMD` (default `agy`) y `CONSENSO_GEMINI_MODEL`
+(default `Gemini 3.1 Pro (High)`).
 
 ## Instalación
 
@@ -62,7 +66,7 @@ Los tests usan stubs de los CLIs (`tests/stubs/`) — no llaman a los modelos re
 
 ## Smoke test manual (CLIs reales)
 
-No automatizado (cuesta tokens y es no determinista). Con `codex` y `gemini`
+No automatizado (cuesta tokens y es no determinista). Con `codex` y `agy`
 autenticados, sobre un repo con cambios sin commitear:
 
 ```bash

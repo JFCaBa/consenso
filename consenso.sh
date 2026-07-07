@@ -43,14 +43,18 @@ run_agent() {
   local out="$3"
   local timeout="${CONSENSO_TIMEOUT:-120}"
   local codex_cmd="${CONSENSO_CODEX_CMD:-codex}"
-  local gemini_cmd="${CONSENSO_GEMINI_CMD:-gemini}"
+  # El CLI `gemini` está deprecado; su sucesor es `agy` (multi-modelo). La
+  # lente "gemini" (arquitectura) la provee ahora `agy` con un modelo Gemini
+  # fijado, para preservar la diversidad de modelos del consenso.
+  local gemini_cmd="${CONSENSO_GEMINI_CMD:-agy}"
+  local gemini_model="${CONSENSO_GEMINI_MODEL:-Gemini 3.1 Pro (High)}"
   case "$agent" in
     codex)
       run_with_timeout "$timeout" "$codex_cmd" exec "$prompt" >"$out" 2>"$out.err"
       return $?
       ;;
     gemini)
-      run_with_timeout "$timeout" "$gemini_cmd" -p "$prompt" >"$out" 2>"$out.err"
+      run_with_timeout "$timeout" "$gemini_cmd" --model "$gemini_model" -p "$prompt" >"$out" 2>"$out.err"
       return $?
       ;;
     *)

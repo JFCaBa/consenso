@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stub de gemini para tests. Variables:
 #   STUB_GEMINI_OUT / STUB_GEMINI_SLEEP / STUB_GEMINI_RC (análogas al stub de codex)
-# Se espera invocación: gemini -p "<prompt>"
+# Invocado vía CONSENSO_GEMINI_CMD (agy). Ignora los args (--model .. -p ..).
 sleep "${STUB_GEMINI_SLEEP:-0}"
 if [ -n "${STUB_GEMINI_OUT:-}" ]; then
   printf '%s' "$STUB_GEMINI_OUT"
