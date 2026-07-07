@@ -43,18 +43,22 @@ run_agent() {
   local out="$3"
   local timeout="${CONSENSO_TIMEOUT:-120}"
   local codex_cmd="${CONSENSO_CODEX_CMD:-codex}"
-  # El CLI `gemini` está deprecado; su sucesor es `agy` (multi-modelo). La
-  # lente "gemini" (arquitectura) la provee ahora `agy` con un modelo Gemini
-  # fijado, para preservar la diversidad de modelos del consenso.
+  # El CLI `gemini` está deprecado; su sucesor es `agy` (Antigravity, multi-modelo).
+  # La lente "gemini" (arquitectura) la provee ahora `agy` con un modelo fijado,
+  # para preservar la diversidad de modelos del consenso. Se usa Flash y no Pro
+  # (High): Pro (High) tardaba >7 min en un diff real y el timeout lo mataba;
+  # Flash (High) revisa el mismo diff en ~20-30s con JSON válido.
+  # `--dangerously-skip-permissions` es obligatorio: consenso corre headless y
+  # `agy` se colgaría esperando a un prompt de permisos.
   local gemini_cmd="${CONSENSO_GEMINI_CMD:-agy}"
-  local gemini_model="${CONSENSO_GEMINI_MODEL:-Gemini 3.1 Pro (High)}"
+  local gemini_model="${CONSENSO_GEMINI_MODEL:-Gemini 3.5 Flash (High)}"
   case "$agent" in
     codex)
       run_with_timeout "$timeout" "$codex_cmd" exec "$prompt" >"$out" 2>"$out.err"
       return $?
       ;;
     gemini)
-      run_with_timeout "$timeout" "$gemini_cmd" --model "$gemini_model" -p "$prompt" >"$out" 2>"$out.err"
+      run_with_timeout "$timeout" "$gemini_cmd" --dangerously-skip-permissions --model "$gemini_model" -p "$prompt" >"$out" 2>"$out.err"
       return $?
       ;;
     *)
