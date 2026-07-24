@@ -54,7 +54,7 @@ run_agent() {
   local gemini_model="${CONSENSO_GEMINI_MODEL:-Gemini 3.5 Flash (High)}"
   case "$agent" in
     codex)
-      run_with_timeout "$timeout" "$codex_cmd" exec "$prompt" >"$out" 2>"$out.err"
+      run_with_timeout "$timeout" "$codex_cmd" exec --skip-git-repo-check "$prompt" >"$out" 2>"$out.err"
       return $?
       ;;
     gemini)
