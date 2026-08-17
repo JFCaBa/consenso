@@ -1,11 +1,39 @@
 #!/usr/bin/env bash
-# Stub de gemini para tests. Variables:
-#   STUB_GEMINI_OUT / STUB_GEMINI_SLEEP / STUB_GEMINI_RC (análogas al stub de codex)
-# Invocado vía CONSENSO_GEMINI_CMD (agy). Ignora los args (--model .. -p ..).
+# Stub de agy (invocado como "gemini" desde consenso.sh) para tests. Emula las
+# dos formas reales en que consenso.sh invoca al CLI:
+#   1) prosa (debate):        agy --dangerously-skip-permissions --model .. -p "<prompt>"
+#      -> imprime el texto de prosa a stdout.
+#   2) JSON estructurado (round0): ... --output-format json --json-schema <f> -p "<prompt>"
+#      -> imprime el sobre {"structured_output":{"hallazgos":[...]}, ...} a stdout,
+#      igual que hace agy real con --output-format json.
+#
+# Variables:
+#   STUB_GEMINI_OUT   -> en modo JSON: array de hallazgos. En modo prosa: texto.
+#   STUB_GEMINI_EMPTY -> si está seteada, no imprime nada (simula salida vacía).
+#   STUB_GEMINI_SLEEP / STUB_GEMINI_RC
 sleep "${STUB_GEMINI_SLEEP:-0}"
-if [ -n "${STUB_GEMINI_OUT:-}" ]; then
-  printf '%s' "$STUB_GEMINI_OUT"
-else
+
+json_mode=0
+for a in "$@"; do
+  case "$a" in
+    --output-format|--json-schema) json_mode=1 ;;
+  esac
+done
+
+default_hallazgos() {
   printf '%s' '[{"severidad":"menor","ubicacion":"foo.py:1","problema":"sin docstring","propuesta":"anadir docstring"}]'
+}
+default_prose() {
+  printf '%s' 'gemini prosa de prueba: sin docstring'
+}
+
+if [ -z "${STUB_GEMINI_EMPTY:-}" ]; then
+  if [ "$json_mode" = "1" ]; then
+    body="${STUB_GEMINI_OUT:-$(default_hallazgos)}"
+    printf '{"structured_output":{"hallazgos":%s}}' "$body"
+  else
+    printf '%s' "${STUB_GEMINI_OUT:-$(default_prose)}"
+  fi
 fi
+
 exit "${STUB_GEMINI_RC:-0}"

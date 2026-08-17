@@ -37,7 +37,8 @@ run_with_timeout() {
 }
 
 run_agent() {
-  # $1 = codex|gemini, $2 = prompt, $3 = fichero de salida.
+  # $1 = codex|gemini, $2 = prompt, $3 = fichero de salida. Uso: respuestas en
+  # prosa (debate). Para hallazgos en JSON usa run_agent_json.
   local agent="$1"
   local prompt="$2"
   local out="$3"
@@ -54,11 +55,15 @@ run_agent() {
   local gemini_model="${CONSENSO_GEMINI_MODEL:-Gemini 3.5 Flash (High)}"
   case "$agent" in
     codex)
-      run_with_timeout "$timeout" "$codex_cmd" exec --skip-git-repo-check "$prompt" >"$out" 2>"$out.err"
+      # stdin explícitamente cerrado: si se hereda el stdin del script (p.ej.
+      # al lanzar codex en background con run_with_timeout), codex >=0.14x
+      # imprime "Reading additional input from stdin..." y espera/anexa ese
+      # stdin al prompt, añadiendo ruido y latencia (~20s) al override.
+      run_with_timeout "$timeout" "$codex_cmd" exec --skip-git-repo-check "$prompt" < /dev/null >"$out" 2>"$out.err"
       return $?
       ;;
     gemini)
-      run_with_timeout "$timeout" "$gemini_cmd" --dangerously-skip-permissions --model "$gemini_model" -p "$prompt" >"$out" 2>"$out.err"
+      run_with_timeout "$timeout" "$gemini_cmd" --dangerously-skip-permissions --model "$gemini_model" -p "$prompt" < /dev/null >"$out" 2>"$out.err"
       return $?
       ;;
     *)
@@ -79,34 +84,58 @@ consenso_validate_json() {
   fi
 }
 
-consenso_extract_json() {
-  # $1 = fichero. Normaliza el fichero IN PLACE a un array JSON pelado,
-  # tolerando fences de código (```json ... ```) o prosa antes/después.
-  # Si ya valida como array, no toca nada. Si la extracción no produce un
-  # array válido, deja el fichero tal cual (para que el flujo de reintento
-  # y el fallback a [] sigan aplicando).
-  local file="$1"
-  if consenso_validate_json "$file"; then
-    return 0
-  fi
-  local content
-  content="$(sed '/^```/d' "$file")"
-  case "$content" in
-    *'['*']'*) : ;;
-    *) return 1 ;;
+run_agent_json() {
+  # $1 = codex|gemini, $2 = prompt, $3 = out_file. Escribe el array JSON de
+  # hallazgos en $out (o [] si el agente no participó). 0 si hay array válido.
+  #
+  # A diferencia de run_agent, no pide "responde solo JSON" en el prompt y
+  # raspa la respuesta: fuerza el JSON Schema nativo de cada CLI
+  # (--output-schema de codex, --json-schema de agy — ambos disponibles desde
+  # las versiones actuales), así que la salida es JSON válido o el CLI falla
+  # explícitamente. Diagnóstico ante fallo: $out.err (stderr real del CLI) y
+  # $out.raw (última respuesta cruda, si la hubo).
+  local agent="$1"
+  local prompt="$2"
+  local out="$3"
+  local timeout="${CONSENSO_TIMEOUT:-120}"
+  local codex_cmd="${CONSENSO_CODEX_CMD:-codex}"
+  local gemini_cmd="${CONSENSO_GEMINI_CMD:-agy}"
+  local gemini_model="${CONSENSO_GEMINI_MODEL:-Gemini 3.5 Flash (High)}"
+  local schema="$CONSENSO_HOME/prompts/hallazgos.schema.json"
+  local raw="$out.raw"
+  local rc
+
+  case "$agent" in
+    codex)
+      run_with_timeout "$timeout" "$codex_cmd" exec --skip-git-repo-check \
+        --output-schema "$schema" -o "$raw" "$prompt" \
+        < /dev/null >"$out.stdout" 2>"$out.err"
+      rc=$?
+      ;;
+    gemini)
+      run_with_timeout "$timeout" "$gemini_cmd" --dangerously-skip-permissions \
+        --model "$gemini_model" --output-format json --json-schema "$schema" \
+        -p "$prompt" < /dev/null >"$raw" 2>"$out.err"
+      rc=$?
+      ;;
+    *)
+      echo "run_agent_json: agente desconocido: $agent" >&2
+      return 2
+      ;;
   esac
-  local body
-  body="[${content#*[}"
-  body="${body%]*}]"
-  local tmp_extract
-  tmp_extract="$(mktemp)"
-  printf '%s' "$body" > "$tmp_extract"
-  if consenso_validate_json "$tmp_extract"; then
-    mv "$tmp_extract" "$file"
-    return 0
+
+  if [ "$rc" -ne 0 ] || [ ! -s "$raw" ]; then
+    return 1
   fi
-  rm -f "$tmp_extract"
-  return 1
+
+  case "$agent" in
+    codex)  jq -e '.hallazgos' "$raw" >"$out" 2>>"$out.err" ;;
+    gemini) jq -e '.structured_output.hallazgos' "$raw" >"$out" 2>>"$out.err" ;;
+  esac
+  if [ $? -ne 0 ]; then
+    return 1
+  fi
+  consenso_validate_json "$out"
 }
 
 consenso_agent_with_retry() {
@@ -114,21 +143,16 @@ consenso_agent_with_retry() {
   local agent="$1"
   local prompt="$2"
   local out="$3"
-  run_agent "$agent" "$prompt" "$out"
-  consenso_extract_json "$out"
-  if consenso_validate_json "$out"; then
+  if run_agent_json "$agent" "$prompt" "$out"; then
     return 0
   fi
-  # Reintento con recordatorio de formato.
-  local prompt2="$prompt
-
-IMPORTANTE: responde EXCLUSIVAMENTE con un array JSON de hallazgos, sin texto adicional."
-  run_agent "$agent" "$prompt2" "$out"
-  consenso_extract_json "$out"
-  if consenso_validate_json "$out"; then
+  # Reintento simple: la única causa de fallo con JSON Schema forzado es un
+  # error transitorio del CLI/API (timeout, capacidad, etc.), no un problema
+  # de formato — no hace falta variar el prompt.
+  if run_agent_json "$agent" "$prompt" "$out"; then
     return 0
   fi
-  echo "salida no-JSON tras reintento; agente tratado como no participante" > "$out.err"
+  echo "agente sin salida válida tras reintento; tratado como no participante" >> "$out.err"
   printf '%s' "[]" > "$out"
   return 1
 }

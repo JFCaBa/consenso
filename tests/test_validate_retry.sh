@@ -4,6 +4,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/lib.sh"
 . "$HERE/../consenso.sh"
 export CONSENSO_CODEX_CMD="$HERE/stubs/codex"
+export CONSENSO_GEMINI_CMD="$HERE/stubs/gemini"
 tmp="$(mktemp -d)"
 
 # validate: array válido pasa, prosa no.
@@ -22,46 +23,46 @@ assert_exit 0 consenso_validate_json "$tmp/empty.json"
 printf '%s' '{"a":1}' > "$tmp/obj.json"
 assert_exit 1 consenso_validate_json "$tmp/obj.json"
 
-# retry: stub devuelve basura las dos veces -> out queda en [] y rc 1.
-STUB_CODEX_OUT="basura no-json" consenso_agent_with_retry codex "p" "$tmp/r.json"
+# run_agent_json: el stub escribe {"hallazgos":[...]} en el fichero de -o;
+# run_agent_json debe desenvolverlo a un array pelado.
+assert_exit 0 run_agent_json codex "p" "$tmp/j.json"
+assert_exit 0 consenso_validate_json "$tmp/j.json"
+assert_contains "$(cat "$tmp/j.json")" "division por cero" "run_agent_json codex desenvuelve hallazgos"
+
+assert_exit 0 run_agent_json gemini "p" "$tmp/jg.json"
+assert_exit 0 consenso_validate_json "$tmp/jg.json"
+assert_contains "$(cat "$tmp/jg.json")" "docstring" "run_agent_json gemini desenvuelve structured_output.hallazgos"
+
+# run_agent_json: rc!=0 del CLI -> falla, sin tocar out.
+STUB_CODEX_RC=1 run_agent_json codex "p" "$tmp/fail.json"
+rc=$?
+assert_eq "$rc" "1" "rc!=0 del CLI se propaga como fallo"
+
+# run_agent_json: salida vacía (rc=0 pero -o vacío) -> falla.
+STUB_CODEX_EMPTY=1 run_agent_json codex "p" "$tmp/empty2.json"
+rc=$?
+assert_eq "$rc" "1" "salida vacia se trata como fallo"
+
+# retry: agente falla las dos veces -> out queda en [] y rc 1, con
+# diagnóstico preservado en $out.err.
+STUB_CODEX_RC=1 consenso_agent_with_retry codex "p" "$tmp/r.json"
 rc=$?
 assert_eq "$rc" "1" "retry agotado devuelve 1"
 assert_eq "$(cat "$tmp/r.json")" "[]" "retry agotado deja array vacio"
+assert_contains "$(cat "$tmp/r.json.err")" "no participante" "el diagnostico queda en out.err"
 
-# retry: stub devuelve JSON válido -> rc 0.
+# retry: agente responde bien a la primera -> rc 0.
 assert_exit 0 bash -c ". '$HERE/../consenso.sh'; CONSENSO_CODEX_CMD='$CONSENSO_CODEX_CMD' consenso_agent_with_retry codex p '$tmp/g.json'"
 
-# retry: primera llamada basura, segunda llamada (tras recordatorio) JSON válido -> rc 0 y contenido válido en el out.
+# retry: 1a llamada falla (transitorio), 2a llamada (mismo prompt) responde
+# bien -> rc 0 y contenido válido en el out.
 : > "$tmp/rs.counter"
 STUB_CODEX_COUNTER="$tmp/rs.counter" \
-STUB_CODEX_OUT="basura no-json" \
-STUB_CODEX_OUT2='[{"severidad":"menor","ubicacion":"x","problema":"y","propuesta":"z"}]' \
+STUB_CODEX_FAIL_FIRST=1 \
 consenso_agent_with_retry codex "p" "$tmp/rs.json"
 rc=$?
-assert_eq "$rc" "0" "reintenta y acierta devuelve 0"
-case "$(cat "$tmp/rs.json")" in
-  *'"severidad"'*) : ;;
-  *) echo "FAIL: out no contiene el JSON valido de la 2a llamada" >&2; exit 1 ;;
-esac
-
-# extract: salida con fence ```json ... ``` debe tolerarse (agentes reales suelen envolver así).
-fenced='```json
-[{"severidad":"menor","ubicacion":"x","problema":"fenced","propuesta":"z"}]
-```'
-STUB_CODEX_OUT="$fenced" consenso_agent_with_retry codex "p" "$tmp/fenced.json"
-rc=$?
-assert_eq "$rc" "0" "JSON con fence de codigo se acepta"
-assert_exit 0 consenso_validate_json "$tmp/fenced.json"
-assert_contains "$(cat "$tmp/fenced.json")" "fenced" "el out conserva el hallazgo del JSON con fence"
-
-# extract: salida con prosa antes del array también debe tolerarse.
-prosed='Aquí están los hallazgos:
-[{"severidad":"menor","ubicacion":"x","problema":"prosed","propuesta":"z"}]'
-STUB_CODEX_OUT="$prosed" consenso_agent_with_retry codex "p" "$tmp/prosed.json"
-rc=$?
-assert_eq "$rc" "0" "JSON con prosa delante se acepta"
-assert_exit 0 consenso_validate_json "$tmp/prosed.json"
-assert_contains "$(cat "$tmp/prosed.json")" "prosed" "el out conserva el hallazgo del JSON con prosa"
+assert_eq "$rc" "0" "reintenta tras fallo transitorio y acierta"
+assert_contains "$(cat "$tmp/rs.json")" "severidad" "el out conserva el hallazgo de la 2a llamada"
 
 rm -rf "$tmp"
 echo "OK test_validate_retry"

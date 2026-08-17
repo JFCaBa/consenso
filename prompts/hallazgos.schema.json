@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "hallazgos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "severidad": {
+            "type": "string",
+            "enum": ["bloqueante", "importante", "menor", "nit"]
+          },
+          "ubicacion": { "type": "string" },
+          "problema": { "type": "string" },
+          "propuesta": { "type": "string" }
+        },
+        "required": ["severidad", "ubicacion", "problema", "propuesta"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["hallazgos"],
+  "additionalProperties": false
+}
