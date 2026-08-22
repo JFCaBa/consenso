@@ -4,6 +4,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/lib.sh"
 export CONSENSO_CODEX_BIN="$HERE/stubs/codex"
 export CONSENSO_AGY_BIN="$HERE/stubs/agy"
+export CONSENSO_QWEN_BIN="$HERE/stubs/qwen"
+export CONSENSO_OPENCODE_BIN="$HERE/stubs/opencode"
 export CONSENSO_TIMESTAMP="2026-07-06-1200"
 SCRIPT="$HERE/../consenso.sh"
 
@@ -18,6 +20,26 @@ assert_contains "$(cat "$run_dir/codex.json")" "division por cero" "escribe code
 assert_contains "$(cat "$run_dir/agy.json")" "docstring" "escribe agy.json"
 assert_contains "$(cat "$run_dir/log.md")" "codex" "el log menciona a codex"
 assert_eq "$(cat "$run_dir/modo")" "diff" "diff: persiste el modo en run_dir"
+
+# Elenco completo: 4 agentes -> 4 json + fichero agentes.
+out4="$(bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp")"
+run_dir4="$(printf '%s\n' "$out4" | tail -1)"
+assert_eq "$(cat "$run_dir4/agentes")" "codex
+agy
+qwen
+opencode" "persiste el elenco completo en orden"
+assert_contains "$(cat "$run_dir4/qwen.json")" "sin test" "escribe qwen.json"
+assert_contains "$(cat "$run_dir4/opencode.json")" "error silenciado" "escribe opencode.json"
+
+# Degradación a 1 -> aviso.
+out1="$(CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp")"
+run_dir1="$(printf '%s\n' "$out1" | tail -1)"
+assert_contains "$(cat "$run_dir1/log.md")" "consenso debilitado" "avisa con 1 solo agente"
+
+# 0 agentes -> rc 4.
+assert_exit 4 env CONSENSO_CODEX_BIN=/no/existe CONSENSO_AGY_BIN=/no/existe \
+  CONSENSO_QWEN_BIN=/no/existe CONSENSO_OPENCODE_BIN=/no/existe \
+  bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp"
 
 # Diff vacío -> exit 3.
 printf '' > "$tmp/empty.txt"

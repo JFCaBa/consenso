@@ -428,37 +428,51 @@ cmd_round0() {
   # Persistir el modo para que el debate adapte su instrucción a este run.
   printf '%s' "$modo" > "$run_dir/modo"
 
-  # Ronda 0 corre codex y agy EN PARALELO (spec: "en paralelo"). Cada uno
-  # escribe en su propio fichero, así que no hay colisión. Lanzamos ambos en
-  # background, esperamos a cada uno por separado y solo entonces logueamos,
-  # en orden determinista (codex, luego agy) según el estado capturado.
-  local prompt_codex prompt_agy
-  prompt_codex="$(consenso_build_prompt "$CONSENSO_HOME/prompts/codex.md" "$content_tmp" "$modo")" \
-    || { rm -f "$content_tmp"; return 2; }
-  prompt_agy="$(consenso_build_prompt "$CONSENSO_HOME/prompts/agy.md" "$content_tmp" "$modo")" \
-    || { rm -f "$content_tmp"; return 2; }
-
-  local pid_codex pid_agy rc_codex rc_agy
-  consenso_agent_with_retry codex "$prompt_codex" "$run_dir/codex.json" &
-  pid_codex=$!
-  consenso_agent_with_retry agy "$prompt_agy" "$run_dir/agy.json" &
-  pid_agy=$!
-
-  wait "$pid_codex"
-  rc_codex=$?
-  wait "$pid_agy"
-  rc_agy=$?
-
-  if [ "$rc_codex" -eq 0 ]; then
-    consenso_log_append "$run_dir" "- codex: participó"
-  else
-    consenso_log_append "$run_dir" "- codex: NO participó (salida inválida o fallo del CLI)"
+  # Ronda 0 corre el elenco detectado EN PARALELO (spec: "en paralelo"). Cada
+  # agente escribe en su propio fichero, así que no hay colisión.
+  local elenco n id rol
+  elenco="$(consenso_detectar)" || { rm -f "$content_tmp"; return $?; }
+  n="$(printf '%s' "$elenco" | grep -c . || true)"
+  if [ "$n" -eq 0 ]; then
+    echo "consenso: ningún agente externo detectado. Instala alguno de:" >&2
+    jq -r '.agentes[] | "  - \(.bin) (\(.id))"' "$CONSENSO_REGISTRY" >&2
+    rm -f "$content_tmp"
+    return 4
   fi
-  if [ "$rc_agy" -eq 0 ]; then
-    consenso_log_append "$run_dir" "- agy: participó"
-  else
-    consenso_log_append "$run_dir" "- agy: NO participó (salida inválida o fallo del CLI)"
+  printf '%s\n' "$elenco" > "$run_dir/agentes"
+  if [ "$n" -eq 1 ]; then
+    consenso_log_append "$run_dir" "AVISO: consenso debilitado (1 solo agente externo: $elenco)"
   fi
+
+  # Construir TODOS los prompts antes de lanzar nada: si uno falla, abortamos
+  # sin dejar procesos huérfanos en background.
+  local prompts=() ids=() prompt
+  for id in $elenco; do
+    rol="$(consenso_rol_de "$id")"
+    prompt="$(consenso_build_prompt "$CONSENSO_HOME/$rol" "$content_tmp" "$modo")" \
+      || { rm -f "$content_tmp"; return 2; }
+    prompts[${#prompts[@]}]="$prompt"
+    ids[${#ids[@]}]="$id"
+  done
+
+  # Lanzar todos en paralelo; esperar por pid para saber quién participó.
+  local pids=() j=0
+  for id in "${ids[@]}"; do
+    consenso_agent_with_retry "$id" "${prompts[$j]}" "$run_dir/$id.json" &
+    pids[${#pids[@]}]=$!
+    j=$((j + 1))
+  done
+  local i=0 rc_agente
+  for id in "${ids[@]}"; do
+    wait "${pids[$i]}"
+    rc_agente=$?
+    if [ "$rc_agente" -eq 0 ]; then
+      consenso_log_append "$run_dir" "- $id: participó"
+    else
+      consenso_log_append "$run_dir" "- $id: NO participó (salida inválida o fallo del CLI)"
+    fi
+    i=$((i + 1))
+  done
 
   rm -f "$content_tmp"
   # Última línea de stdout: el run_dir, para que Claude sepa dónde leer.

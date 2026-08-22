@@ -4,6 +4,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/lib.sh"
 export CONSENSO_CODEX_BIN="$HERE/stubs/codex"
 export CONSENSO_AGY_BIN="$HERE/stubs/agy"
+export CONSENSO_QWEN_BIN="$HERE/stubs/qwen"
+export CONSENSO_OPENCODE_BIN="$HERE/stubs/opencode"
 export CONSENSO_TIMESTAMP="2026-07-06-1200"
 SCRIPT="$HERE/../consenso.sh"
 
@@ -14,6 +16,8 @@ printf 'diff --git a/foo.py b/foo.py\n+return 1/0\n' > "$tmp/d.txt"
 rd="$(bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp" | tail -1)"
 jq -e . "$rd/codex.json" >/dev/null || fail "codex.json no es JSON válido"
 jq -e . "$rd/agy.json" >/dev/null || fail "agy.json no es JSON válido"
+jq -e . "$rd/qwen.json" >/dev/null || fail "qwen.json no es JSON válido"
+jq -e . "$rd/opencode.json" >/dev/null || fail "opencode.json no es JSON válido"
 
 # debate encadenado sobre el mismo run_dir
 printf 'Punto: division por cero. Codex importante, Agy no lo ve.\n' > "$tmp/points.txt"
