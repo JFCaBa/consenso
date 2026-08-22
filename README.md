@@ -1,8 +1,9 @@
 # consenso
 
-Flujo de trabajo multiagente para programación: **Claude, Agy y Codex** revisan el
-mismo trabajo, cada uno con su fortaleza, y exigen un **consenso mediante debate cruzado**
-antes de dar algo por bueno.
+Flujo de trabajo multiagente para programación: **Claude y un elenco dinámico de
+CLIs de agentes** (Codex, Agy, Qwen, OpenCode — los que estén instalados) revisan
+el mismo trabajo, cada uno con su fortaleza, y exigen un **consenso mediante
+debate cruzado** antes de dar algo por bueno.
 
 Nace de un patrón que funcionó en la práctica: consultar a un segundo modelo (Codex) sobre
 el código escrito elevó de forma notable la calidad. Esto lo convierte en un flujo
@@ -13,9 +14,11 @@ repetible y global.
 - **Puerta de consenso** en dos momentos, no en cada cambio: **revisión de código** y
   **puntos críticos/de riesgo** (migraciones, borrados, API pública, auth/secretos,
   dependencias nuevas, acciones irreversibles).
-- **Roles fijos por fortaleza:**
+- **Roles fijos por fortaleza** (lentes curadas en `agents/registry.json`):
   - **Codex** → corrección, edge-cases, lógica fina, bordes de seguridad
   - **Agy** (Antigravity, con un modelo Gemini) → arquitectura, contexto amplio, dependencias, coherencia del sistema
+  - **Qwen** → tests, cobertura y rendimiento
+  - **OpenCode** → seguridad y manejo de errores
   - **Claude** → síntesis, legibilidad, mantenibilidad + orquesta el debate
 - **Resolución por debate:** cada agente ve las críticas de los otros y rebate, cede o
   matiza. Si tras 1–2 rondas no convergen, escala a decisión humana.
@@ -83,7 +86,7 @@ En Claude Code, invoca `/consenso` sobre el cambio actual, o deja que Claude lo
 dispare automáticamente en puntos críticos. Por debajo:
 
 ```bash
-bash consenso.sh round0 --workdir .        # revisión independiente (codex+agy)
+bash consenso.sh round0 --workdir .        # revisión independiente (elenco detectado)
 bash consenso.sh round0 --plan plan.md --workdir .   # revisión de un plan (prosa)
 bash consenso.sh debate --points p.txt --run-dir .consenso/<ts>   # ronda de debate
 ```
