@@ -41,12 +41,21 @@ Overrides: `CONSENSO_<ID>_BIN`, `CONSENSO_<ID>_MODEL` (p.ej.
 `CONSENSO_AGY_MODEL="Gemini 3.5 Flash (High)"`), `CONSENSO_AGENTS="codex,agy"`
 para forzar un subconjunto, `CONSENSO_TIMEOUT` global (cede ante el `timeout`
 por agente del registro). Con un modelo de la familia Pro, sube el timeout:
-Pro (High) puede tardar >7 min por revisión.
+Pro (High) puede tardar >7 min por revisión. Los overrides legacy
+`CONSENSO_CODEX_CMD`/`CONSENSO_AGY_CMD` ya no existen — usa
+`CONSENSO_<ID>_BIN`; es una ruptura limpia, sin fallback al nombre antiguo.
 
 `qwen` y `opencode` dependen de que su propio proveedor esté con crédito o
 plan de pago activo en esa máquina (no basta con tener el binario instalado):
 sin eso, `doctor` los marca `FALLO` y `round0` los deja como "NO participó"
 — degradación esperada, no un fallo de consenso.sh.
+
+**Nota de seguridad:** `qwen` corre con `--approval-mode yolo` y `agy` con
+`--dangerously-skip-permissions` (obligatorio para ejecución headless sin
+prompts interactivos). consenso está pensado para revisar diffs propios;
+revisar diffs de terceros no confiables expone a esos agentes auto-aprobados
+a prompt-injection embebida en el propio diff. Una mitigación más fuerte
+(sandbox, opt-in explícito) queda como mejora futura.
 
 ## Instalación
 
