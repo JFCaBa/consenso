@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stub de agy (invocado como "gemini" desde consenso.sh) para tests. Emula las
+# Stub de agy (invocado como "agy" desde consenso.sh) para tests. Emula las
 # dos formas reales en que consenso.sh invoca al CLI:
 #   1) prosa (debate):        agy --dangerously-skip-permissions --model .. -p "<prompt>"
 #      -> imprime el texto de prosa a stdout.
@@ -8,10 +8,10 @@
 #      igual que hace agy real con --output-format json.
 #
 # Variables:
-#   STUB_GEMINI_OUT   -> en modo JSON: array de hallazgos. En modo prosa: texto.
-#   STUB_GEMINI_EMPTY -> si está seteada, no imprime nada (simula salida vacía).
-#   STUB_GEMINI_SLEEP / STUB_GEMINI_RC
-sleep "${STUB_GEMINI_SLEEP:-0}"
+#   STUB_AGY_OUT   -> en modo JSON: array de hallazgos. En modo prosa: texto.
+#   STUB_AGY_EMPTY -> si está seteada, no imprime nada (simula salida vacía).
+#   STUB_AGY_SLEEP / STUB_AGY_RC
+sleep "${STUB_AGY_SLEEP:-0}"
 
 json_mode=0
 for a in "$@"; do
@@ -24,16 +24,16 @@ default_hallazgos() {
   printf '%s' '[{"severidad":"menor","ubicacion":"foo.py:1","problema":"sin docstring","propuesta":"anadir docstring"}]'
 }
 default_prose() {
-  printf '%s' 'gemini prosa de prueba: sin docstring'
+  printf '%s' 'agy prosa de prueba: sin docstring'
 }
 
-if [ -z "${STUB_GEMINI_EMPTY:-}" ]; then
+if [ -z "${STUB_AGY_EMPTY:-}" ]; then
   if [ "$json_mode" = "1" ]; then
-    body="${STUB_GEMINI_OUT:-$(default_hallazgos)}"
+    body="${STUB_AGY_OUT:-$(default_hallazgos)}"
     printf '{"structured_output":{"hallazgos":%s}}' "$body"
   else
-    printf '%s' "${STUB_GEMINI_OUT:-$(default_prose)}"
+    printf '%s' "${STUB_AGY_OUT:-$(default_prose)}"
   fi
 fi
 
-exit "${STUB_GEMINI_RC:-0}"
+exit "${STUB_AGY_RC:-0}"

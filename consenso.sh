@@ -37,22 +37,21 @@ run_with_timeout() {
 }
 
 run_agent() {
-  # $1 = codex|gemini, $2 = prompt, $3 = fichero de salida. Uso: respuestas en
+  # $1 = codex|agy, $2 = prompt, $3 = fichero de salida. Uso: respuestas en
   # prosa (debate). Para hallazgos en JSON usa run_agent_json.
   local agent="$1"
   local prompt="$2"
   local out="$3"
   local timeout="${CONSENSO_TIMEOUT:-120}"
   local codex_cmd="${CONSENSO_CODEX_CMD:-codex}"
-  # El CLI `gemini` está deprecado; su sucesor es `agy` (Antigravity, multi-modelo).
-  # La lente "gemini" (arquitectura) la provee ahora `agy` con un modelo fijado,
-  # para preservar la diversidad de modelos del consenso. Se usa Flash y no Pro
-  # (High): Pro (High) tardaba >7 min en un diff real y el timeout lo mataba;
-  # Flash (High) revisa el mismo diff en ~20-30s con JSON válido.
+  # La lente de arquitectura la provee `agy` (Antigravity, multi-modelo) con un
+  # modelo Gemini fijado, para preservar la diversidad de modelos del consenso.
+  # Se usa Flash y no Pro (High): Pro (High) tardaba >7 min en un diff real y el
+  # timeout lo mataba; Flash (High) revisa el mismo diff en ~20-30s con JSON válido.
   # `--dangerously-skip-permissions` es obligatorio: consenso corre headless y
   # `agy` se colgaría esperando a un prompt de permisos.
-  local gemini_cmd="${CONSENSO_GEMINI_CMD:-agy}"
-  local gemini_model="${CONSENSO_GEMINI_MODEL:-Gemini 3.5 Flash (High)}"
+  local agy_cmd="${CONSENSO_AGY_CMD:-agy}"
+  local agy_model="${CONSENSO_AGY_MODEL:-Gemini 3.5 Flash (High)}"
   case "$agent" in
     codex)
       # stdin explícitamente cerrado: si se hereda el stdin del script (p.ej.
@@ -62,8 +61,8 @@ run_agent() {
       run_with_timeout "$timeout" "$codex_cmd" exec --skip-git-repo-check "$prompt" < /dev/null >"$out" 2>"$out.err"
       return $?
       ;;
-    gemini)
-      run_with_timeout "$timeout" "$gemini_cmd" --dangerously-skip-permissions --model "$gemini_model" -p "$prompt" < /dev/null >"$out" 2>"$out.err"
+    agy)
+      run_with_timeout "$timeout" "$agy_cmd" --dangerously-skip-permissions --model "$agy_model" -p "$prompt" < /dev/null >"$out" 2>"$out.err"
       return $?
       ;;
     *)
@@ -85,7 +84,7 @@ consenso_validate_json() {
 }
 
 run_agent_json() {
-  # $1 = codex|gemini, $2 = prompt, $3 = out_file. Escribe el array JSON de
+  # $1 = codex|agy, $2 = prompt, $3 = out_file. Escribe el array JSON de
   # hallazgos en $out (o [] si el agente no participó). 0 si hay array válido.
   #
   # A diferencia de run_agent, no pide "responde solo JSON" en el prompt y
@@ -99,8 +98,8 @@ run_agent_json() {
   local out="$3"
   local timeout="${CONSENSO_TIMEOUT:-120}"
   local codex_cmd="${CONSENSO_CODEX_CMD:-codex}"
-  local gemini_cmd="${CONSENSO_GEMINI_CMD:-agy}"
-  local gemini_model="${CONSENSO_GEMINI_MODEL:-Gemini 3.5 Flash (High)}"
+  local agy_cmd="${CONSENSO_AGY_CMD:-agy}"
+  local agy_model="${CONSENSO_AGY_MODEL:-Gemini 3.5 Flash (High)}"
   local schema="$CONSENSO_HOME/prompts/hallazgos.schema.json"
   local raw="$out.raw"
   local rc
@@ -112,9 +111,9 @@ run_agent_json() {
         < /dev/null >"$out.stdout" 2>"$out.err"
       rc=$?
       ;;
-    gemini)
-      run_with_timeout "$timeout" "$gemini_cmd" --dangerously-skip-permissions \
-        --model "$gemini_model" --output-format json --json-schema "$schema" \
+    agy)
+      run_with_timeout "$timeout" "$agy_cmd" --dangerously-skip-permissions \
+        --model "$agy_model" --output-format json --json-schema "$schema" \
         -p "$prompt" < /dev/null >"$raw" 2>"$out.err"
       rc=$?
       ;;
@@ -129,8 +128,8 @@ run_agent_json() {
   fi
 
   case "$agent" in
-    codex)  jq -e '.hallazgos' "$raw" >"$out" 2>>"$out.err" ;;
-    gemini) jq -e '.structured_output.hallazgos' "$raw" >"$out" 2>>"$out.err" ;;
+    codex) jq -e '.hallazgos' "$raw" >"$out" 2>>"$out.err" ;;
+    agy)   jq -e '.structured_output.hallazgos' "$raw" >"$out" 2>>"$out.err" ;;
   esac
   if [ $? -ne 0 ]; then
     return 1
@@ -235,34 +234,34 @@ cmd_round0() {
   run_dir="$(consenso_run_dir "$workdir")"
   consenso_init_log "$run_dir" "Ronda 0 — revisión independiente"
 
-  # Ronda 0 corre codex y gemini EN PARALELO (spec: "en paralelo"). Cada uno
+  # Ronda 0 corre codex y agy EN PARALELO (spec: "en paralelo"). Cada uno
   # escribe en su propio fichero, así que no hay colisión. Lanzamos ambos en
   # background, esperamos a cada uno por separado y solo entonces logueamos,
-  # en orden determinista (codex, luego gemini) según el estado capturado.
-  local prompt_codex prompt_gemini
+  # en orden determinista (codex, luego agy) según el estado capturado.
+  local prompt_codex prompt_agy
   prompt_codex="$(consenso_build_prompt "$CONSENSO_HOME/prompts/codex.md" "$diff_tmp")"
-  prompt_gemini="$(consenso_build_prompt "$CONSENSO_HOME/prompts/gemini.md" "$diff_tmp")"
+  prompt_agy="$(consenso_build_prompt "$CONSENSO_HOME/prompts/agy.md" "$diff_tmp")"
 
-  local pid_codex pid_gemini rc_codex rc_gemini
+  local pid_codex pid_agy rc_codex rc_agy
   consenso_agent_with_retry codex "$prompt_codex" "$run_dir/codex.json" &
   pid_codex=$!
-  consenso_agent_with_retry gemini "$prompt_gemini" "$run_dir/gemini.json" &
-  pid_gemini=$!
+  consenso_agent_with_retry agy "$prompt_agy" "$run_dir/agy.json" &
+  pid_agy=$!
 
   wait "$pid_codex"
   rc_codex=$?
-  wait "$pid_gemini"
-  rc_gemini=$?
+  wait "$pid_agy"
+  rc_agy=$?
 
   if [ "$rc_codex" -eq 0 ]; then
     consenso_log_append "$run_dir" "- codex: participó"
   else
     consenso_log_append "$run_dir" "- codex: NO participó (salida inválida o fallo del CLI)"
   fi
-  if [ "$rc_gemini" -eq 0 ]; then
-    consenso_log_append "$run_dir" "- gemini: participó"
+  if [ "$rc_agy" -eq 0 ]; then
+    consenso_log_append "$run_dir" "- agy: participó"
   else
-    consenso_log_append "$run_dir" "- gemini: NO participó (salida inválida o fallo del CLI)"
+    consenso_log_append "$run_dir" "- agy: NO participó (salida inválida o fallo del CLI)"
   fi
 
   rm -f "$diff_tmp"
@@ -310,7 +309,7 @@ cmd_debate() {
   local prompt="$instruccion$points"
 
   local agent
-  for agent in codex gemini; do
+  for agent in codex agy; do
     if run_agent "$agent" "$prompt" "$run_dir/debate-$round-$agent.md"; then
       consenso_log_append "$run_dir" "- debate ronda $round: $agent respondió"
     else

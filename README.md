@@ -1,6 +1,6 @@
 # consenso
 
-Flujo de trabajo multiagente para programación: **Claude, Gemini y Codex** revisan el
+Flujo de trabajo multiagente para programación: **Claude, Agy y Codex** revisan el
 mismo trabajo, cada uno con su fortaleza, y exigen un **consenso mediante debate cruzado**
 antes de dar algo por bueno.
 
@@ -15,7 +15,7 @@ repetible y global.
   dependencias nuevas, acciones irreversibles).
 - **Roles fijos por fortaleza:**
   - **Codex** → corrección, edge-cases, lógica fina, bordes de seguridad
-  - **Gemini** → arquitectura, contexto amplio, dependencias, coherencia del sistema
+  - **Agy** (Antigravity, con un modelo Gemini) → arquitectura, contexto amplio, dependencias, coherencia del sistema
   - **Claude** → síntesis, legibilidad, mantenibilidad + orquesta el debate
 - **Resolución por debate:** cada agente ve las críticas de los otros y rebate, cede o
   matiza. Si tras 1–2 rondas no convergen, escala a decisión humana.
@@ -29,12 +29,13 @@ el diseño original en
 
 ## Requisitos
 
-CLIs en modo headless: `codex` (`codex exec`), `agy` (`agy --model "Gemini …" -p`,
-sucesor del deprecado `gemini` CLI; provee la lente "gemini"/arquitectura con un
-modelo Gemini), `claude` como orquestador.
+CLIs en modo headless: `codex` (`codex exec`), `agy` (Antigravity,
+`agy --model "Gemini …" -p`; provee la lente de arquitectura con un modelo
+Gemini), `claude` como orquestador.
 
-Overrides: `CONSENSO_GEMINI_CMD` (default `agy`) y `CONSENSO_GEMINI_MODEL`
-(default `Gemini 3.1 Pro (High)`).
+Overrides: `CONSENSO_AGY_CMD` (default `agy`) y `CONSENSO_AGY_MODEL`
+(default `Gemini 3.5 Flash (High)`). Con un modelo de la familia Pro, sube
+`CONSENSO_TIMEOUT` (default 120s): Pro (High) puede tardar >7 min por revisión.
 
 ## Instalación
 
@@ -50,7 +51,7 @@ En Claude Code, invoca `/consenso` sobre el cambio actual, o deja que Claude lo
 dispare automáticamente en puntos críticos. Por debajo:
 
 ```bash
-bash consenso.sh round0 --workdir .        # revisión independiente (codex+gemini)
+bash consenso.sh round0 --workdir .        # revisión independiente (codex+agy)
 bash consenso.sh debate --points p.txt --run-dir .consenso/<ts>   # ronda de debate
 ```
 
@@ -72,7 +73,7 @@ autenticados, sobre un repo con cambios sin commitear:
 ```bash
 bash consenso.sh round0 --workdir /ruta/a/tu/repo
 cat /ruta/a/tu/repo/.consenso/*/codex.json
-cat /ruta/a/tu/repo/.consenso/*/gemini.json
+cat /ruta/a/tu/repo/.consenso/*/agy.json
 ```
 
 Verifica que ambos devuelven un array JSON de hallazgos sobre tu diff.

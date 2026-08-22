@@ -4,7 +4,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/lib.sh"
 . "$HERE/../consenso.sh"
 export CONSENSO_CODEX_CMD="$HERE/stubs/codex"
-export CONSENSO_GEMINI_CMD="$HERE/stubs/gemini"
+export CONSENSO_AGY_CMD="$HERE/stubs/agy"
 tmp="$(mktemp -d)"
 
 # validate: array válido pasa, prosa no.
@@ -29,9 +29,9 @@ assert_exit 0 run_agent_json codex "p" "$tmp/j.json"
 assert_exit 0 consenso_validate_json "$tmp/j.json"
 assert_contains "$(cat "$tmp/j.json")" "division por cero" "run_agent_json codex desenvuelve hallazgos"
 
-assert_exit 0 run_agent_json gemini "p" "$tmp/jg.json"
+assert_exit 0 run_agent_json agy "p" "$tmp/jg.json"
 assert_exit 0 consenso_validate_json "$tmp/jg.json"
-assert_contains "$(cat "$tmp/jg.json")" "docstring" "run_agent_json gemini desenvuelve structured_output.hallazgos"
+assert_contains "$(cat "$tmp/jg.json")" "docstring" "run_agent_json agy desenvuelve structured_output.hallazgos"
 
 # run_agent_json: rc!=0 del CLI -> falla, sin tocar out.
 STUB_CODEX_RC=1 run_agent_json codex "p" "$tmp/fail.json"
