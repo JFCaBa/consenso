@@ -50,11 +50,23 @@ sin eso, `doctor` los marca `FALLO` y `round0` los deja como "NO participó"
 
 ## Instalación
 
+Como plugin de Claude Code (recomendado):
+
+```
+/plugin marketplace add JFCaBa/consenso
+/plugin install consenso@consenso
+```
+
+Vía legacy sin plugins (symlink del slash command):
+
 ```bash
 git clone https://github.com/JFCaBa/consenso
 cd consenso
 bash install.sh   # symlinka /consenso en ~/.claude/commands
 ```
+
+No mezcles ambas: si instalas el plugin, borra el symlink
+(`rm ~/.claude/commands/consenso.md`) para no duplicar la skill.
 
 ## Uso
 
