@@ -21,4 +21,12 @@ assert_contains "${ARGV[*]}" "/ruta/schema.json" "sustituye {SCHEMA}"
 assert_exit 2 consenso_argv inexistente prosa p "" "" ""
 assert_exit 64 consenso_argv codex chorra p "" "" ""
 
+# Orden de sustitución: {PROMPT} debe sustituirse EL ÚLTIMO. Si el propio
+# texto del prompt contiene literalmente "{SCHEMA}" o "{MODEL}" (p.ej. consenso
+# revisando el diff de su propio registro), esos tokens no deben reescribirse.
+prompt_con_tokens='En este diff hay literales {SCHEMA} y {MODEL} en el registro.'
+consenso_argv codex prosa "$prompt_con_tokens" "" "" ""
+assert_contains "${ARGV[2]}" "{SCHEMA}" "el prompt conserva el literal {SCHEMA}"
+assert_contains "${ARGV[2]}" "{MODEL}" "el prompt conserva el literal {MODEL}"
+
 echo "OK test_argv"

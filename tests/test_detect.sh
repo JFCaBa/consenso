@@ -31,6 +31,11 @@ qwen" "override de bin activa a agy"
 assert_eq "$(CONSENSO_AGENTS=qwen,codex consenso_detectar)" "codex
 qwen" "subconjunto respeta prioridad"
 
+# CONSENSO_AGENTS tolera espacios alrededor de las comas (p.ej. copiado del
+# README o tecleado a mano): mismo resultado que sin espacios.
+assert_eq "$(CONSENSO_AGENTS='qwen, codex' consenso_detectar)" "codex
+qwen" "tolera espacios en CONSENSO_AGENTS"
+
 # CONSENSO_AGENTS inválido -> rc 64 (heredan los CONSENSO_*_BIN exportados).
 assert_exit 64 env CONSENSO_AGENTS=codex,noexiste bash -c ". '$HERE/../consenso.sh'; consenso_detectar"
 assert_exit 64 env CONSENSO_AGENTS=codex,codex bash -c ". '$HERE/../consenso.sh'; consenso_detectar"

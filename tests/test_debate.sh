@@ -66,6 +66,13 @@ out5="$(STUB_CODEX_OUT='Mantengo' STUB_AGY_OUT='Cedo' STUB_QWEN_OUT='Matizo' \
   bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir" --round 4)"
 assert_contains "$(cat "$run_dir/debate-4-qwen.md")" "Matizo" "debate llega al tercer agente"
 
+# run-dir existente pero con elenco vacío (p.ej. --run-dir mal escrito, sin
+# fichero `agentes` ni <id>.json): debate debe fallar con rc 64, no no-opear
+# silenciosamente con rc 0.
+rd_vacio="$tmp/.consenso/vacio"
+mkdir -p "$rd_vacio"
+assert_exit 64 bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$rd_vacio"
+
 # Sin fichero agentes: reconstruye desde <id>.json (nunca redetecta).
 rd_legacy="$tmp/.consenso/legacy"
 mkdir -p "$rd_legacy"

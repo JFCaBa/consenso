@@ -306,17 +306,19 @@ consenso_detectar() {
   # Imprime los ids de agentes cuyo binario está en el PATH, en orden de
   # prioridad del registro. CONSENSO_AGENTS="a,b" restringe a ese subconjunto
   # (validado contra el registro: rc 64 si hay ids vacíos/desconocidos/dupes).
-  local ids id bin
+  local ids id bin lista
   if [ -n "${CONSENSO_AGENTS:-}" ]; then
+    # Tolera espacios alrededor de ids/comas (copiar-pegar, tecleo a mano).
+    lista="${CONSENSO_AGENTS//[[:space:]]/}"
     # Comas al principio/final o dobles = token vacío (la command substitution
     # de jq no distinguiría "codex," de "codex"): guardia previa.
-    case "$CONSENSO_AGENTS" in
+    case "$lista" in
       ,*|*,|*,,*)
         echo "consenso: CONSENSO_AGENTS contiene un id vacío" >&2
         return 64 ;;
     esac
     # Validación + filtrado en jq (ya es dependencia): error() -> rc != 0.
-    ids="$(jq -r --arg lista "$CONSENSO_AGENTS" '
+    ids="$(jq -r --arg lista "$lista" '
       ($lista | split(",")) as $pedido
       | [.agentes[].id] as $conocidos
       | if ($pedido | unique | length) != ($pedido | length) then error("dup")
@@ -352,10 +354,13 @@ consenso_argv() {
   agente="$(consenso_agente_json "$id")" || return 2
   ARGV=()
   while IFS= read -r -d '' elem; do
-    elem="${elem//\{PROMPT\}/$prompt}"
+    # {PROMPT} se sustituye EL ÚLTIMO: si el propio prompt contiene literales
+    # como "{SCHEMA}" (p.ej. consenso revisando el diff de su propio
+    # registro), sustituir antes reescribiría ese texto por error.
     elem="${elem//\{SCHEMA\}/$schema}"
     elem="${elem//\{RAW\}/$raw}"
     elem="${elem//\{MODEL\}/$model}"
+    elem="${elem//\{PROMPT\}/$prompt}"
     ARGV[${#ARGV[@]}]="$elem"
   done < <(printf '%s' "$agente" | jq -j "$filtro | (., \"\\u0000\")")
 }
@@ -543,6 +548,13 @@ cmd_debate() {
     return 64
   fi
 
+  local elenco
+  elenco="$(consenso_elenco_de "$run_dir")"
+  if [ -z "$elenco" ]; then
+    echo "debate: elenco vacío en $run_dir (¿run-dir correcto?)" >&2
+    return 64
+  fi
+
   local instruccion
   instruccion="$(consenso_debate_instruccion "$run_dir")"
   local points
@@ -552,7 +564,7 @@ cmd_debate() {
 $points"
 
   local agent
-  for agent in $(consenso_elenco_de "$run_dir"); do
+  for agent in $elenco; do
     if run_agent "$agent" "$prompt" "$run_dir/debate-$round-$agent.md"; then
       consenso_log_append "$run_dir" "- debate ronda $round: $agent respondió"
     else
