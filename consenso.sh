@@ -58,6 +58,11 @@ run_agent() {
   local id="$1" prompt="$2" out="$3"
   local bin model timeout via
   bin="$(consenso_bin_de "$id")" || return 2
+  # El modelo por defecto (p.ej. Gemini Flash para la lente de arquitectura de
+  # agy) vive en modelo_default del registro: se prefirió Flash a Pro (High)
+  # porque Pro tardaba >7 min en un diff real y el timeout lo mataba, mientras
+  # que Flash (High) responde en ~20-30s con JSON válido. Para usar un modelo
+  # Pro hay que subir CONSENSO_TIMEOUT (ver README).
   model="$(consenso_model_de "$id")"
   timeout="$(consenso_timeout_de "$id")"
   via="$(consenso_agente_json "$id" | jq -r '.prompt_via // "argv"')"
@@ -65,6 +70,9 @@ run_agent() {
   if [ "$via" = "stdin" ]; then
     printf '%s' "$prompt" | run_with_timeout "$timeout" "$bin" "${ARGV[@]}" >"$out" 2>"$out.err"
   else
+    # stdin explícitamente cerrado: codex >=0.14x (y en general cualquier CLI
+    # con semántica propia de stdin) lee el stdin heredado y lo anexa al
+    # prompt, añadiendo ruido y ~20s de latencia si no se cierra.
     run_with_timeout "$timeout" "$bin" "${ARGV[@]}" < /dev/null >"$out" 2>"$out.err"
   fi
 }
