@@ -285,6 +285,42 @@ consenso_timeout_de() {
   fi
 }
 
+consenso_detectar() {
+  # Imprime los ids de agentes cuyo binario está en el PATH, en orden de
+  # prioridad del registro. CONSENSO_AGENTS="a,b" restringe a ese subconjunto
+  # (validado contra el registro: rc 64 si hay ids vacíos/desconocidos/dupes).
+  local ids id bin
+  if [ -n "${CONSENSO_AGENTS:-}" ]; then
+    # Comas al principio/final o dobles = token vacío (la command substitution
+    # de jq no distinguiría "codex," de "codex"): guardia previa.
+    case "$CONSENSO_AGENTS" in
+      ,*|*,|*,,*)
+        echo "consenso: CONSENSO_AGENTS contiene un id vacío" >&2
+        return 64 ;;
+    esac
+    # Validación + filtrado en jq (ya es dependencia): error() -> rc != 0.
+    ids="$(jq -r --arg lista "$CONSENSO_AGENTS" '
+      ($lista | split(",")) as $pedido
+      | [.agentes[].id] as $conocidos
+      | if ($pedido | unique | length) != ($pedido | length) then error("dup")
+        elif ([$pedido[] | select(. as $p | $conocidos | index($p) == null)] | length) > 0 then error("desconocido")
+        else .agentes | sort_by(.prioridad) | .[].id | select(. as $i | $pedido | index($i) != null)
+        end' "$CONSENSO_REGISTRY" 2>/dev/null)" || {
+      echo "consenso: CONSENSO_AGENTS contiene ids desconocidos o duplicados" >&2
+      return 64
+    }
+  else
+    ids="$(jq -r '.agentes | sort_by(.prioridad) | .[].id' "$CONSENSO_REGISTRY")"
+  fi
+  for id in $ids; do
+    bin="$(consenso_bin_de "$id")"
+    if command -v "$bin" >/dev/null 2>&1; then
+      printf '%s\n' "$id"
+    fi
+  done
+  return 0
+}
+
 consenso_get_content() {
   # $1 = workdir, $2 = (opcional) fichero de contenido (diff o plan). Imprime
   # el fichero tal cual, o `git diff HEAD` del workdir si no se da; 3 si vacío.
