@@ -26,6 +26,12 @@ assert_contains "$(consenso_agente_json codex)" '"id":"codex"' "devuelve el obje
 assert_exit 2 consenso_agente_json inexistente
 assert_eq "$(consenso_rol_de agy)" "prompts/agy.md" "rol de agy"
 
+# Propagación de rc 2 en accesores cuando no existe el agente.
+assert_exit 2 consenso_rol_de inexistente
+assert_exit 2 consenso_bin_de inexistente
+assert_exit 2 consenso_model_de inexistente
+assert_exit 2 consenso_timeout_de inexistente
+
 # Overrides por entorno.
 assert_eq "$(consenso_bin_de codex)" "codex" "bin por defecto"
 assert_eq "$(CONSENSO_CODEX_BIN=/tmp/otro consenso_bin_de codex)" "/tmp/otro" "override de bin"

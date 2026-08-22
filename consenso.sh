@@ -241,7 +241,9 @@ consenso_agente_json() {
 
 consenso_rol_de() {
   # $1 = id. Imprime la ruta (relativa a CONSENSO_HOME) del prompt de rol.
-  consenso_agente_json "$1" | jq -r '.rol'
+  local obj
+  obj="$(consenso_agente_json "$1")" || return $?
+  printf '%s' "$obj" | jq -r '.rol'
 }
 
 consenso_bin_de() {
@@ -251,7 +253,9 @@ consenso_bin_de() {
   if [ -n "$override" ]; then
     printf '%s' "$override"
   else
-    consenso_agente_json "$1" | jq -r '.bin'
+    local obj
+    obj="$(consenso_agente_json "$1")" || return $?
+    printf '%s' "$obj" | jq -r '.bin'
   fi
 }
 
@@ -262,14 +266,18 @@ consenso_model_de() {
   if [ -n "$override" ]; then
     printf '%s' "$override"
   else
-    consenso_agente_json "$1" | jq -r '.modelo_default // ""'
+    local obj
+    obj="$(consenso_agente_json "$1")" || return $?
+    printf '%s' "$obj" | jq -r '.modelo_default // ""'
   fi
 }
 
 consenso_timeout_de() {
   # $1 = id. Timeout: el del agente en el registro, o CONSENSO_TIMEOUT, o 120.
+  local obj
+  obj="$(consenso_agente_json "$1")" || return $?
   local propio
-  propio="$(consenso_agente_json "$1" | jq -r '.timeout // ""')"
+  propio="$(printf '%s' "$obj" | jq -r '.timeout // ""')"
   if [ -n "$propio" ]; then
     printf '%s' "$propio"
   else
