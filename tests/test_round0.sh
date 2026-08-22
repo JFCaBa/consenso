@@ -49,6 +49,11 @@ assert_exit 4 env CONSENSO_CODEX_BIN=/no/existe CONSENSO_AGY_BIN=/no/existe \
 printf '' > "$tmp/empty.txt"
 assert_exit 3 bash "$SCRIPT" round0 --diff "$tmp/empty.txt" --workdir "$tmp"
 
+# Registro inválido -> rc 65 antes de crear nada.
+printf '{"agentes":[]}' > "$tmp/reg-malo.json"
+assert_exit 65 env CONSENSO_REGISTRY="$tmp/reg-malo.json" \
+  bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp"
+
 # Un agente falla (rc!=0 y salida basura): el otro sigue, round0 no aborta.
 out2="$(STUB_CODEX_RC=1 STUB_CODEX_OUT='boom' bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp")"
 run_dir2="$(printf '%s\n' "$out2" | tail -1)"

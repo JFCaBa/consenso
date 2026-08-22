@@ -405,6 +405,8 @@ cmd_round0() {
     esac
   done
 
+  consenso_registry_validar "$CONSENSO_REGISTRY" || return $?
+
   if [ -n "$plan_file" ] && [ -n "$diff_file" ]; then
     echo "round0: --plan y --diff son excluyentes" >&2
     return 64
@@ -533,6 +535,9 @@ cmd_debate() {
       *) echo "debate: opción desconocida: $1" >&2; return 64 ;;
     esac
   done
+
+  consenso_registry_validar "$CONSENSO_REGISTRY" || return $?
+
   if [ ! -f "$points_file" ] || [ -z "$run_dir" ]; then
     echo "debate: faltan --points o --run-dir" >&2
     return 64

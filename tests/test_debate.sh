@@ -55,6 +55,11 @@ assert_exit 64 bash "$SCRIPT" debate --points
 assert_exit 64 bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir
 assert_exit 64 bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir" --round
 
+# Registro inválido -> rc 65 antes de crear nada.
+printf '{"agentes":[]}' > "$tmp/reg-malo.json"
+assert_exit 65 env CONSENSO_REGISTRY="$tmp/reg-malo.json" \
+  bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir"
+
 # El run_dir del test declara un elenco de 3: el debate escribe 3 ficheros.
 printf 'codex\nagy\nqwen\n' > "$run_dir/agentes"
 out5="$(STUB_CODEX_OUT='Mantengo' STUB_AGY_OUT='Cedo' STUB_QWEN_OUT='Matizo' \
