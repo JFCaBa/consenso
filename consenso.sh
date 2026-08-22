@@ -558,13 +558,40 @@ $points"
   printf '%s\n' "$run_dir"
 }
 
+cmd_doctor() {
+  # Diagnóstico: recorre TODO el registro. NOT FOUND para los no instalados
+  # (con cómo sumarlos); para los instalados, una llamada real mínima por su
+  # misma vía JSON — la respuesta correcta es el array vacío [], porque un
+  # "OK" en texto no puede satisfacer a los CLIs con schema forzado.
+  local id bin t0 t1 tmp
+  consenso_registry_validar "$CONSENSO_REGISTRY" || return $?
+  tmp="$(mktemp -d)"
+  for id in $(jq -r '.agentes | sort_by(.prioridad) | .[].id' "$CONSENSO_REGISTRY"); do
+    bin="$(consenso_bin_de "$id")"
+    if ! command -v "$bin" >/dev/null 2>&1; then
+      echo "$id: NOT FOUND ($bin no está en el PATH; instálalo para sumarlo al consenso)"
+      continue
+    fi
+    t0="$(date +%s)"
+    if run_agent_json "$id" "Prueba de conectividad: no hay nada que revisar. Devuelve un array de hallazgos vacío." "$tmp/$id.json"; then
+      t1="$(date +%s)"
+      echo "$id: OK ($((t1 - t0))s)"
+    else
+      echo "$id: FALLO (CLI presente pero sin salida válida). Últimas líneas de su stderr:"
+      tail -5 "$tmp/$id.json.err" 2>/dev/null | sed 's/^/    /'
+    fi
+  done
+  rm -rf "$tmp"
+}
+
 main() {
   local sub="${1:-}"
   [ $# -gt 0 ] && shift
   case "$sub" in
     round0) cmd_round0 "$@" ;;
     debate) cmd_debate "$@" ;;
-    "") echo "uso: consenso.sh <round0|debate> [opciones]" >&2; return 64 ;;
+    doctor) cmd_doctor "$@" ;;
+    "") echo "uso: consenso.sh <round0|debate|doctor> [opciones]" >&2; return 64 ;;
     *) echo "consenso: subcomando desconocido: $sub" >&2; return 64 ;;
   esac
 }
