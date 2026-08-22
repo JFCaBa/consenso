@@ -3,8 +3,9 @@ description: Use SIEMPRE tras escribir un plan de implementación y antes de com
 ---
 
 Orquestas una revisión por **consenso** del cambio actual usando `consenso.sh`
-(en el mismo repo que este command) más tu propio juicio. Codex y Agy se
-invocan por el script; tú (Claude) aportas tu lente de legibilidad y sintetizas.
+(en el mismo repo que este command) más tu propio juicio. El script invoca al
+elenco de agentes detectado (ver `agents/registry.json`); tú (Claude) aportas
+tu lente de legibilidad y sintetizas.
 
 ## Cuándo disparar esto automáticamente
 
@@ -40,8 +41,11 @@ dudosos, alternativas más simples) en lugar de código.
 ## Flujo
 
 1. **Ronda 0.** Ejecuta `bash <ruta>/consenso.sh round0 --workdir <repo>` (o
-   `--diff <fichero>` si ya tienes el diff aislado). Lee la última línea de la
-   salida: es el `run_dir`. Lee `run_dir/codex.json` y `run_dir/agy.json`.
+   `--diff <fichero>` / `--plan <fichero>`). Lee la última línea de la
+   salida: es el `run_dir`. Lee `run_dir/agentes` (el elenco detectado) y el
+   `run_dir/<id>.json` de cada agente listado ahí — no un glob de `*.json`.
+   Si el log avisa de "consenso debilitado", pesa más tu propia lente y hazlo
+   constar en el informe.
 
 2. **Tu revisión.** Revisa tú el mismo diff con tu lente (legibilidad,
    mantenibilidad) y produce tus propios hallazgos en el mismo formato.
@@ -55,8 +59,8 @@ dudosos, alternativas más simples) en lugar de código.
 4. **Debate (solo si hay singletons/conflictos).** Escribe un fichero de puntos
    en disputa con las críticas cruzadas y ejecuta
    `bash <ruta>/consenso.sh debate --points <fichero> --run-dir <run_dir> --round 1`.
-   Lee las respuestas `debate-1-codex.md` / `debate-1-agy.md`. Si convergen,
-   cierra. Si no, una **ronda 2** como máximo.
+   Lee las respuestas `debate-1-<id>.md` de cada agente del elenco. Si
+   convergen, cierra. Si no, una **ronda 2** como máximo.
 
 5. **Fallback (deadlock tras 1–2 rondas).** No fuerces un ganador: presenta al
    usuario las dos posturas enfrentadas con tu recomendación y deja que decida.

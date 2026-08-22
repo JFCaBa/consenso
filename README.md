@@ -29,13 +29,24 @@ el diseño original en
 
 ## Requisitos
 
-CLIs en modo headless: `codex` (`codex exec`), `agy` (Antigravity,
-`agy --model "Gemini …" -p`; provee la lente de arquitectura con un modelo
-Gemini), `claude` como orquestador.
+`jq`, `git`, y al menos un CLI de agente en modo headless. Los soportados
+están en `agents/registry.json`: `codex`, `agy` (Antigravity), `qwen` y
+`opencode`. Consenso detecta los instalados en cada ejecución y corre con los
+que haya (con 1 solo agente lo marca como "consenso debilitado"; con 0, error).
 
-Overrides: `CONSENSO_AGY_CMD` (default `agy`) y `CONSENSO_AGY_MODEL`
-(default `Gemini 3.5 Flash (High)`). Con un modelo de la familia Pro, sube
-`CONSENSO_TIMEOUT` (default 120s): Pro (High) puede tardar >7 min por revisión.
+`bash consenso.sh doctor` comprueba de verdad cada agente del registro
+(instalado + llamada de prueba) y te dice cuáles participarían.
+
+Overrides: `CONSENSO_<ID>_BIN`, `CONSENSO_<ID>_MODEL` (p.ej.
+`CONSENSO_AGY_MODEL="Gemini 3.5 Flash (High)"`), `CONSENSO_AGENTS="codex,agy"`
+para forzar un subconjunto, `CONSENSO_TIMEOUT` global (cede ante el `timeout`
+por agente del registro). Con un modelo de la familia Pro, sube el timeout:
+Pro (High) puede tardar >7 min por revisión.
+
+`qwen` y `opencode` dependen de que su propio proveedor esté con crédito o
+plan de pago activo en esa máquina (no basta con tener el binario instalado):
+sin eso, `doctor` los marca `FALLO` y `round0` los deja como "NO participó"
+— degradación esperada, no un fallo de consenso.sh.
 
 ## Instalación
 

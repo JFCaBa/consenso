@@ -49,6 +49,7 @@
       "lente": "seguridad y manejo de errores",
       "rol": "prompts/opencode.md",
       "prioridad": 4,
+      "timeout": 200,
       "prosa_argv": ["run", "{PROMPT}"],
       "json": {
         "via": "prompt",
