@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Stub de qwen. JSON: sobre {"response":"..."} donde response es un string con
+# el array de hallazgos dentro de fences markdown. Prosa: texto plano.
+# Variables: STUB_QWEN_OUT, STUB_QWEN_EMPTY, STUB_QWEN_RC, STUB_QWEN_SLEEP.
+sleep "${STUB_QWEN_SLEEP:-0}"
+json_mode=0
+for a in "$@"; do [ "$a" = "--output-format" ] && json_mode=1; done
+if [ -z "${STUB_QWEN_EMPTY:-}" ]; then
+  if [ "$json_mode" = "1" ]; then
+    if [ -n "${STUB_QWEN_OUT:-}" ]; then
+      body="$STUB_QWEN_OUT"
+    else
+      body='[{"severidad":"menor","ubicacion":"foo.py:1","problema":"sin test","propuesta":"anadir test"}]'
+    fi
+    printf '{"response":"```json\\n%s\\n```"}' "$(printf '%s' "$body" | sed 's/"/\\"/g')"
+  else
+    printf '%s' "${STUB_QWEN_OUT:-qwen prosa de prueba: sin test}"
+  fi
+fi
+exit "${STUB_QWEN_RC:-0}"

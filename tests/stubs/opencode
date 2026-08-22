@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Stub de opencode. Imprime STUB_OPENCODE_OUT (default: array de hallazgos
+# entre fences, como respondería un modelo al que se le pide solo JSON).
+# Variables: STUB_OPENCODE_OUT, STUB_OPENCODE_EMPTY, STUB_OPENCODE_RC, STUB_OPENCODE_SLEEP.
+sleep "${STUB_OPENCODE_SLEEP:-0}"
+if [ -z "${STUB_OPENCODE_EMPTY:-}" ]; then
+  if [ -n "${STUB_OPENCODE_OUT:-}" ]; then
+    printf '%s' "$STUB_OPENCODE_OUT"
+  else
+    printf '```json\n[{"severidad":"menor","ubicacion":"foo.py:1","problema":"error silenciado","propuesta":"propagar el error"}]\n```'
+  fi
+fi
+exit "${STUB_OPENCODE_RC:-0}"

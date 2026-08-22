@@ -88,58 +88,85 @@ consenso_validate_json() {
   fi
 }
 
+consenso_desenfence() {
+  # $1 = fichero. Imprime el contenido quitando SOLO la primera y la última
+  # línea si son fences de markdown — nunca líneas interiores, que pueden ser
+  # contenido legítimo de un hallazgo.
+  awk 'NR==FNR { total=FNR; next }
+       FNR==1 && $0 ~ /^[[:space:]]*```/ { next }
+       FNR==total && $0 ~ /^[[:space:]]*```[[:space:]]*$/ { next }
+       { print }' "$1" "$1"
+}
+
+consenso_extraer_hallazgos() {
+  # $1=id, $2=fichero raw, $3=out. Aplica extract del registro y, para
+  # via=prompt, normaliza en dos pasos: si el valor extraído es un string,
+  # quita los fences exteriores y lo parsea como JSON. Valida el contrato final.
+  local id="$1" raw="$2" out="$3"
+  local via extract
+  via="$(consenso_agente_json "$id" | jq -r '.json.via')"
+  extract="$(consenso_agente_json "$id" | jq -r '.json.extract')"
+  if [ "$via" = "schema" ]; then
+    jq -e "$extract" "$raw" >"$out" 2>>"$out.err" || return 1
+  else
+    # El raw de un agente via prompt puede no ser JSON (p.ej. opencode imprime
+    # el texto del modelo tal cual): si jq no lo parsea, quitar los fences
+    # exteriores y tratar el conjunto como el JSON.
+    if jq -e . "$raw" >/dev/null 2>&1; then
+      jq -e "$extract" "$raw" >"$out.tmp" 2>>"$out.err" || return 1
+      if jq -e 'type=="string"' "$out.tmp" >/dev/null 2>&1; then
+        jq -r '.' "$out.tmp" >"$out.txt"
+        consenso_desenfence "$out.txt" | jq -e '.' >"$out" 2>>"$out.err"
+        local rc_norm=$?
+        rm -f "$out.tmp" "$out.txt"
+        [ "$rc_norm" -eq 0 ] || return 1
+      else
+        mv "$out.tmp" "$out"
+      fi
+    else
+      consenso_desenfence "$raw" | jq -e '.' >"$out" 2>>"$out.err" || return 1
+    fi
+  fi
+  consenso_validate_json "$out"
+}
+
 run_agent_json() {
-  # $1 = codex|agy, $2 = prompt, $3 = out_file. Escribe el array JSON de
+  # $1 = id del registro, $2 = prompt, $3 = out_file. Escribe el array JSON de
   # hallazgos en $out (o [] si el agente no participó). 0 si hay array válido.
-  #
-  # A diferencia de run_agent, no pide "responde solo JSON" en el prompt y
-  # raspa la respuesta: fuerza el JSON Schema nativo de cada CLI
-  # (--output-schema de codex, --json-schema de agy — ambos disponibles desde
-  # las versiones actuales), así que la salida es JSON válido o el CLI falla
-  # explícitamente. Diagnóstico ante fallo: $out.err (stderr real del CLI) y
-  # $out.raw (última respuesta cruda, si la hubo).
-  local agent="$1"
-  local prompt="$2"
-  local out="$3"
-  local timeout="${CONSENSO_TIMEOUT:-120}"
-  local codex_cmd="${CONSENSO_CODEX_BIN:-codex}"
-  local agy_cmd="${CONSENSO_AGY_BIN:-agy}"
-  local agy_model="${CONSENSO_AGY_MODEL:-Gemini 3.5 Flash (High)}"
-  local schema="$CONSENSO_HOME/prompts/hallazgos.schema.json"
-  local raw="$out.raw"
-  local rc
+  # via=schema: JSON Schema nativo del CLI (codex --output-schema, agy
+  # --json-schema); via=prompt: instrucciones de _formato.md + normalización.
+  local id="$1" prompt="$2" out="$3"
+  local bin model timeout via salida raw rc
+  bin="$(consenso_bin_de "$id")" || return 2
+  model="$(consenso_model_de "$id")"
+  timeout="$(consenso_timeout_de "$id")"
+  via="$(consenso_agente_json "$id" | jq -r '.json.via')"
+  salida="$(consenso_agente_json "$id" | jq -r '.json.salida')"
+  raw="$out.raw"
+  # Limpiar restos de ejecuciones/reintentos anteriores: un raw viejo podría
+  # extraerse como éxito falso si el CLI falla sin escribir nada.
+  rm -f "$raw" "$out.stdout"
+  if [ "$via" = "prompt" ]; then
+    prompt="$prompt
 
-  case "$agent" in
-    codex)
-      run_with_timeout "$timeout" "$codex_cmd" exec --skip-git-repo-check \
-        --output-schema "$schema" -o "$raw" "$prompt" \
-        < /dev/null >"$out.stdout" 2>"$out.err"
-      rc=$?
-      ;;
-    agy)
-      run_with_timeout "$timeout" "$agy_cmd" --dangerously-skip-permissions \
-        --model "$agy_model" --output-format json --json-schema "$schema" \
-        -p "$prompt" < /dev/null >"$raw" 2>"$out.err"
-      rc=$?
-      ;;
-    *)
-      echo "run_agent_json: agente desconocido: $agent" >&2
-      return 2
-      ;;
-  esac
-
+$(cat "$CONSENSO_HOME/prompts/_formato.md")"
+  fi
+  consenso_argv "$id" json "$prompt" "$CONSENSO_HOME/prompts/hallazgos.schema.json" "$raw" "$model" || return $?
+  # Destino del stdout: $raw si el JSON sale por stdout; ruido a $out.stdout
+  # si el CLI escribe {RAW} él mismo (codex -o). Fuente del stdin: el prompt
+  # con prompt_via=stdin, /dev/null si no.
+  local stdout_dest="$out.stdout"
+  [ "$salida" = "stdout" ] && stdout_dest="$raw"
+  if [ "$(consenso_agente_json "$id" | jq -r '.prompt_via // "argv"')" = "stdin" ]; then
+    printf '%s' "$prompt" | run_with_timeout "$timeout" "$bin" "${ARGV[@]}" >"$stdout_dest" 2>"$out.err"
+  else
+    run_with_timeout "$timeout" "$bin" "${ARGV[@]}" < /dev/null >"$stdout_dest" 2>"$out.err"
+  fi
+  rc=$?
   if [ "$rc" -ne 0 ] || [ ! -s "$raw" ]; then
     return 1
   fi
-
-  case "$agent" in
-    codex) jq -e '.hallazgos' "$raw" >"$out" 2>>"$out.err" ;;
-    agy)   jq -e '.structured_output.hallazgos' "$raw" >"$out" 2>>"$out.err" ;;
-  esac
-  if [ $? -ne 0 ]; then
-    return 1
-  fi
-  consenso_validate_json "$out"
+  consenso_extraer_hallazgos "$id" "$raw" "$out"
 }
 
 consenso_agent_with_retry() {
