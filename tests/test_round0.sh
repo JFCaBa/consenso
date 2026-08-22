@@ -2,8 +2,8 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/lib.sh"
-export CONSENSO_CODEX_CMD="$HERE/stubs/codex"
-export CONSENSO_AGY_CMD="$HERE/stubs/agy"
+export CONSENSO_CODEX_BIN="$HERE/stubs/codex"
+export CONSENSO_AGY_BIN="$HERE/stubs/agy"
 export CONSENSO_TIMESTAMP="2026-07-06-1200"
 SCRIPT="$HERE/../consenso.sh"
 

@@ -3,8 +3,8 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/lib.sh"
 . "$HERE/../consenso.sh"
-export CONSENSO_CODEX_CMD="$HERE/stubs/codex"
-export CONSENSO_AGY_CMD="$HERE/stubs/agy"
+export CONSENSO_CODEX_BIN="$HERE/stubs/codex"
+export CONSENSO_AGY_BIN="$HERE/stubs/agy"
 tmp="$(mktemp -d)"
 
 # validate: array válido pasa, prosa no.
@@ -52,7 +52,7 @@ assert_eq "$(cat "$tmp/r.json")" "[]" "retry agotado deja array vacio"
 assert_contains "$(cat "$tmp/r.json.err")" "no participante" "el diagnostico queda en out.err"
 
 # retry: agente responde bien a la primera -> rc 0.
-assert_exit 0 bash -c ". '$HERE/../consenso.sh'; CONSENSO_CODEX_CMD='$CONSENSO_CODEX_CMD' consenso_agent_with_retry codex p '$tmp/g.json'"
+assert_exit 0 bash -c ". '$HERE/../consenso.sh'; CONSENSO_CODEX_BIN='$CONSENSO_CODEX_BIN' consenso_agent_with_retry codex p '$tmp/g.json'"
 
 # retry: 1a llamada falla (transitorio), 2a llamada (mismo prompt) responde
 # bien -> rc 0 y contenido válido en el out.

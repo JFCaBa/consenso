@@ -52,39 +52,21 @@ run_with_timeout() {
 }
 
 run_agent() {
-  # $1 = codex|agy, $2 = prompt, $3 = fichero de salida. Uso: respuestas en
-  # prosa (debate). Para hallazgos en JSON usa run_agent_json.
-  local agent="$1"
-  local prompt="$2"
-  local out="$3"
-  local timeout="${CONSENSO_TIMEOUT:-120}"
-  local codex_cmd="${CONSENSO_CODEX_CMD:-codex}"
-  # La lente de arquitectura la provee `agy` (Antigravity, multi-modelo) con un
-  # modelo Gemini fijado, para preservar la diversidad de modelos del consenso.
-  # Se usa Flash y no Pro (High): Pro (High) tardaba >7 min en un diff real y el
-  # timeout lo mataba; Flash (High) revisa el mismo diff en ~20-30s con JSON válido.
-  # `--dangerously-skip-permissions` es obligatorio: consenso corre headless y
-  # `agy` se colgaría esperando a un prompt de permisos.
-  local agy_cmd="${CONSENSO_AGY_CMD:-agy}"
-  local agy_model="${CONSENSO_AGY_MODEL:-Gemini 3.5 Flash (High)}"
-  case "$agent" in
-    codex)
-      # stdin explícitamente cerrado: si se hereda el stdin del script (p.ej.
-      # al lanzar codex en background con run_with_timeout), codex >=0.14x
-      # imprime "Reading additional input from stdin..." y espera/anexa ese
-      # stdin al prompt, añadiendo ruido y latencia (~20s) al override.
-      run_with_timeout "$timeout" "$codex_cmd" exec --skip-git-repo-check "$prompt" < /dev/null >"$out" 2>"$out.err"
-      return $?
-      ;;
-    agy)
-      run_with_timeout "$timeout" "$agy_cmd" --dangerously-skip-permissions --model "$agy_model" -p "$prompt" < /dev/null >"$out" 2>"$out.err"
-      return $?
-      ;;
-    *)
-      echo "run_agent: agente desconocido: $agent" >&2
-      return 2
-      ;;
-  esac
+  # $1 = id del registro, $2 = prompt, $3 = fichero de salida. Uso: respuestas
+  # en prosa (debate). Para hallazgos en JSON usa run_agent_json.
+  # stdin cerrado salvo prompt_via=stdin (codex >=0.14x anexa stdin al prompt).
+  local id="$1" prompt="$2" out="$3"
+  local bin model timeout via
+  bin="$(consenso_bin_de "$id")" || return 2
+  model="$(consenso_model_de "$id")"
+  timeout="$(consenso_timeout_de "$id")"
+  via="$(consenso_agente_json "$id" | jq -r '.prompt_via // "argv"')"
+  consenso_argv "$id" prosa "$prompt" "" "" "$model" || return $?
+  if [ "$via" = "stdin" ]; then
+    printf '%s' "$prompt" | run_with_timeout "$timeout" "$bin" "${ARGV[@]}" >"$out" 2>"$out.err"
+  else
+    run_with_timeout "$timeout" "$bin" "${ARGV[@]}" < /dev/null >"$out" 2>"$out.err"
+  fi
 }
 
 consenso_validate_json() {
@@ -112,8 +94,8 @@ run_agent_json() {
   local prompt="$2"
   local out="$3"
   local timeout="${CONSENSO_TIMEOUT:-120}"
-  local codex_cmd="${CONSENSO_CODEX_CMD:-codex}"
-  local agy_cmd="${CONSENSO_AGY_CMD:-agy}"
+  local codex_cmd="${CONSENSO_CODEX_BIN:-codex}"
+  local agy_cmd="${CONSENSO_AGY_BIN:-agy}"
   local agy_model="${CONSENSO_AGY_MODEL:-Gemini 3.5 Flash (High)}"
   local schema="$CONSENSO_HOME/prompts/hallazgos.schema.json"
   local raw="$out.raw"
