@@ -200,6 +200,83 @@ consenso_log_append() {
 # Ruta al directorio del propio script (para localizar prompts/).
 CONSENSO_HOME="$(cd "$(dirname "${BASH_SOURCE:-$0}")" && pwd)"
 
+CONSENSO_REGISTRY="${CONSENSO_REGISTRY:-$CONSENSO_HOME/agents/registry.json}"
+
+consenso_registry_validar() {
+  # $1 = fichero de registro. 0 si válido; 65 si no (el registro se trata como
+  # configuración no confiable aunque viva en el repo).
+  if jq -e '
+    (.agentes | type=="array" and length>0)
+    and ([.agentes[] | select(
+          (.id? | type=="string" and test("^[a-z0-9_]+$"))
+      and (.bin? | type=="string" and length>0)
+      and (.lente? | type=="string" and length>0)
+      and (.rol? | type=="string" and length>0)
+      and (.prioridad? | type=="number")
+      and (.prosa_argv? | type=="array" and length>0 and all(.[]; type=="string"))
+      and ((.prompt_via // "argv") as $p | ["argv","stdin"] | index($p) != null)
+      and (.json.via? as $v | ["schema","prompt"] | index($v) != null)
+      and (.json.salida? as $s | ["stdout","fichero"] | index($s) != null)
+      and (.json.argv? | type=="array" and length>0 and all(.[]; type=="string"))
+      and (.json.extract? | type=="string" and test("^\\.([a-zA-Z0-9_]+(\\.[a-zA-Z0-9_]+)*)?$"))
+    )] | length) == (.agentes | length)
+    and ([.agentes[].id] | unique | length) == (.agentes | length)
+  ' "$1" >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "consenso: registro inválido: $1" >&2
+  return 65
+}
+
+consenso_agente_json() {
+  # $1 = id. Imprime el objeto del agente en una línea; rc 2 si no existe.
+  local obj
+  obj="$(jq -c --arg id "$1" '.agentes[] | select(.id==$id)' "$CONSENSO_REGISTRY")"
+  if [ -z "$obj" ]; then
+    echo "consenso: agente desconocido en el registro: $1" >&2
+    return 2
+  fi
+  printf '%s' "$obj"
+}
+
+consenso_rol_de() {
+  # $1 = id. Imprime la ruta (relativa a CONSENSO_HOME) del prompt de rol.
+  consenso_agente_json "$1" | jq -r '.rol'
+}
+
+consenso_bin_de() {
+  # $1 = id. Binario resuelto: CONSENSO_<ID>_BIN o el bin del registro.
+  local var="CONSENSO_$(printf '%s' "$1" | tr 'a-z' 'A-Z')_BIN"
+  local override="${!var:-}"
+  if [ -n "$override" ]; then
+    printf '%s' "$override"
+  else
+    consenso_agente_json "$1" | jq -r '.bin'
+  fi
+}
+
+consenso_model_de() {
+  # $1 = id. Modelo resuelto: CONSENSO_<ID>_MODEL o modelo_default (o vacío).
+  local var="CONSENSO_$(printf '%s' "$1" | tr 'a-z' 'A-Z')_MODEL"
+  local override="${!var:-}"
+  if [ -n "$override" ]; then
+    printf '%s' "$override"
+  else
+    consenso_agente_json "$1" | jq -r '.modelo_default // ""'
+  fi
+}
+
+consenso_timeout_de() {
+  # $1 = id. Timeout: el del agente en el registro, o CONSENSO_TIMEOUT, o 120.
+  local propio
+  propio="$(consenso_agente_json "$1" | jq -r '.timeout // ""')"
+  if [ -n "$propio" ]; then
+    printf '%s' "$propio"
+  else
+    printf '%s' "${CONSENSO_TIMEOUT:-120}"
+  fi
+}
+
 consenso_get_content() {
   # $1 = workdir, $2 = (opcional) fichero de contenido (diff o plan). Imprime
   # el fichero tal cual, o `git diff HEAD` del workdir si no se da; 3 si vacío.

@@ -1,0 +1,61 @@
+{
+  "agentes": [
+    {
+      "id": "codex",
+      "bin": "codex",
+      "lente": "corrección, edge-cases, lógica fina, bordes de seguridad",
+      "rol": "prompts/codex.md",
+      "prioridad": 1,
+      "prosa_argv": ["exec", "--skip-git-repo-check", "{PROMPT}"],
+      "json": {
+        "via": "schema",
+        "argv": ["exec", "--skip-git-repo-check", "--output-schema", "{SCHEMA}", "-o", "{RAW}", "{PROMPT}"],
+        "salida": "fichero",
+        "extract": ".hallazgos"
+      }
+    },
+    {
+      "id": "agy",
+      "bin": "agy",
+      "lente": "arquitectura, contexto amplio, dependencias, coherencia del sistema",
+      "rol": "prompts/agy.md",
+      "prioridad": 2,
+      "modelo_default": "Gemini 3.5 Flash (High)",
+      "prosa_argv": ["--dangerously-skip-permissions", "--model", "{MODEL}", "-p", "{PROMPT}"],
+      "json": {
+        "via": "schema",
+        "argv": ["--dangerously-skip-permissions", "--model", "{MODEL}", "--output-format", "json", "--json-schema", "{SCHEMA}", "-p", "{PROMPT}"],
+        "salida": "stdout",
+        "extract": ".structured_output.hallazgos"
+      }
+    },
+    {
+      "id": "qwen",
+      "bin": "qwen",
+      "lente": "tests, cobertura y rendimiento",
+      "rol": "prompts/qwen.md",
+      "prioridad": 3,
+      "prosa_argv": ["--approval-mode", "yolo", "-p", "{PROMPT}"],
+      "json": {
+        "via": "prompt",
+        "argv": ["--approval-mode", "yolo", "--output-format", "json", "-p", "{PROMPT}"],
+        "salida": "stdout",
+        "extract": ".response"
+      }
+    },
+    {
+      "id": "opencode",
+      "bin": "opencode",
+      "lente": "seguridad y manejo de errores",
+      "rol": "prompts/opencode.md",
+      "prioridad": 4,
+      "prosa_argv": ["run", "{PROMPT}"],
+      "json": {
+        "via": "prompt",
+        "argv": ["run", "{PROMPT}"],
+        "salida": "stdout",
+        "extract": "."
+      }
+    }
+  ]
+}
