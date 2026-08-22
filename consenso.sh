@@ -321,6 +321,28 @@ consenso_detectar() {
   return 0
 }
 
+consenso_argv() {
+  # $1=id, $2=prosa|json, $3=prompt, $4=schema, $5=raw, $6=model.
+  # Rellena el array global ARGV con los argumentos del registro, sustituyendo
+  # placeholders. Sin eval; delimitador NUL para preservar saltos de línea.
+  local id="$1" modo="$2" prompt="$3" schema="$4" raw="$5" model="$6"
+  local filtro elem agente
+  case "$modo" in
+    prosa) filtro='.prosa_argv[]' ;;
+    json)  filtro='.json.argv[]' ;;
+    *) echo "consenso_argv: modo desconocido: $modo" >&2; return 64 ;;
+  esac
+  agente="$(consenso_agente_json "$id")" || return 2
+  ARGV=()
+  while IFS= read -r -d '' elem; do
+    elem="${elem//\{PROMPT\}/$prompt}"
+    elem="${elem//\{SCHEMA\}/$schema}"
+    elem="${elem//\{RAW\}/$raw}"
+    elem="${elem//\{MODEL\}/$model}"
+    ARGV[${#ARGV[@]}]="$elem"
+  done < <(printf '%s' "$agente" | jq -j "$filtro | (., \"\\u0000\")")
+}
+
 consenso_get_content() {
   # $1 = workdir, $2 = (opcional) fichero de contenido (diff o plan). Imprime
   # el fichero tal cual, o `git diff HEAD` del workdir si no se da; 3 si vacío.
