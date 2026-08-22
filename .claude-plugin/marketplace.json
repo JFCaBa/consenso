@@ -1,0 +1,14 @@
+{
+  "name": "consenso",
+  "description": "Marketplace del plugin consenso",
+  "owner": { "name": "Jose", "email": "jfca68@gmail.com" },
+  "plugins": [
+    {
+      "name": "consenso",
+      "description": "Revisión por consenso multiagente con debate cruzado y detección dinámica de CLIs",
+      "version": "1.0.0",
+      "source": "./",
+      "author": { "name": "Jose", "email": "jfca68@gmail.com" }
+    }
+  ]
+}

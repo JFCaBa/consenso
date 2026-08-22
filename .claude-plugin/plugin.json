@@ -1,0 +1,10 @@
+{
+  "name": "consenso",
+  "description": "Revisión por consenso multiagente (Codex + Agy + Qwen + OpenCode + Claude) con debate cruzado, detección dinámica de CLIs y validación de planes y diffs",
+  "version": "1.0.0",
+  "author": { "name": "Jose", "email": "jfca68@gmail.com" },
+  "homepage": "https://github.com/JFCaBa/consenso",
+  "repository": "https://github.com/JFCaBa/consenso",
+  "license": "MIT",
+  "keywords": ["review", "consensus", "multi-agent", "codex", "gemini", "qwen", "opencode"]
+}
