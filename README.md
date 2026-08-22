@@ -52,6 +52,7 @@ dispare automáticamente en puntos críticos. Por debajo:
 
 ```bash
 bash consenso.sh round0 --workdir .        # revisión independiente (codex+agy)
+bash consenso.sh round0 --plan plan.md --workdir .   # revisión de un plan (prosa)
 bash consenso.sh debate --points p.txt --run-dir .consenso/<ts>   # ronda de debate
 ```
 

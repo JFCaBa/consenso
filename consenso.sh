@@ -4,17 +4,32 @@
 set -u
 
 consenso_build_prompt() {
-  # $1 = fichero de rol, $2 = fichero de diff. Imprime el prompt completo.
+  # $1 = fichero de rol, $2 = fichero de contenido, $3 = (opcional) modo
+  # diff|plan (default diff). Imprime el prompt completo.
   local rol_file="$1"
-  local diff_file="$2"
-  if [ ! -f "$rol_file" ] || [ ! -f "$diff_file" ]; then
-    echo "consenso: falta rol o diff" >&2
+  local content_file="$2"
+  local modo="${3:-diff}"
+  case "$modo" in
+    diff|plan) : ;;
+    *) echo "consenso_build_prompt: modo desconocido: $modo" >&2; return 64 ;;
+  esac
+  if [ ! -f "$rol_file" ] || [ ! -f "$content_file" ]; then
+    echo "consenso: falta rol o contenido" >&2
     return 2
   fi
   cat "$rol_file"
   echo ""
-  echo "----- DIFF A REVISAR -----"
-  cat "$diff_file"
+  if [ "$modo" = "plan" ]; then
+    echo "NOTA: lo que sigue es un PLAN DE IMPLEMENTACIÓN en prosa, no un diff."
+    echo "Evalúa el diseño con tu lente: riesgos, pasos que faltan, supuestos"
+    echo "dudosos y alternativas más simples. En 'ubicacion' referencia la"
+    echo "sección o el paso del plan."
+    echo ""
+    echo "----- PLAN A REVISAR -----"
+  else
+    echo "----- DIFF A REVISAR -----"
+  fi
+  cat "$content_file"
 }
 
 run_with_timeout() {
@@ -185,13 +200,14 @@ consenso_log_append() {
 # Ruta al directorio del propio script (para localizar prompts/).
 CONSENSO_HOME="$(cd "$(dirname "${BASH_SOURCE:-$0}")" && pwd)"
 
-consenso_get_diff() {
-  # $1 = workdir, $2 = (opcional) fichero de diff. Imprime el diff; 3 si vacío.
+consenso_get_content() {
+  # $1 = workdir, $2 = (opcional) fichero de contenido (diff o plan). Imprime
+  # el fichero tal cual, o `git diff HEAD` del workdir si no se da; 3 si vacío.
   local workdir="$1"
-  local diff_file="${2:-}"
+  local content_file="${2:-}"
   local content=""
-  if [ -n "$diff_file" ]; then
-    content="$(cat "$diff_file")"
+  if [ -n "$content_file" ]; then
+    content="$(cat "$content_file")"
   else
     content="$(git -C "$workdir" diff HEAD 2>/dev/null)"
   fi
@@ -204,6 +220,7 @@ consenso_get_diff() {
 cmd_round0() {
   local workdir="."
   local diff_file=""
+  local plan_file=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --workdir)
@@ -218,29 +235,48 @@ cmd_round0() {
           return 64
         fi
         diff_file="$2"; shift 2 ;;
+      --plan)
+        if [ $# -lt 2 ]; then
+          echo "round0: falta valor para --plan" >&2
+          return 64
+        fi
+        plan_file="$2"; shift 2 ;;
       *) echo "round0: opción desconocida: $1" >&2; return 64 ;;
     esac
   done
 
-  local diff_tmp
-  diff_tmp="$(mktemp)"
-  if ! consenso_get_diff "$workdir" "$diff_file" > "$diff_tmp"; then
-    echo "consenso: no hay cambios que revisar (diff vacío)" >&2
-    rm -f "$diff_tmp"
+  if [ -n "$plan_file" ] && [ -n "$diff_file" ]; then
+    echo "round0: --plan y --diff son excluyentes" >&2
+    return 64
+  fi
+  local modo="diff"
+  [ -n "$plan_file" ] && modo="plan"
+
+  local content_tmp
+  content_tmp="$(mktemp)"
+  if ! consenso_get_content "$workdir" "${plan_file:-$diff_file}" > "$content_tmp"; then
+    echo "consenso: no hay contenido que revisar (diff o plan vacío)" >&2
+    rm -f "$content_tmp"
     return 3
   fi
 
-  local run_dir
+  local run_dir titulo
   run_dir="$(consenso_run_dir "$workdir")"
-  consenso_init_log "$run_dir" "Ronda 0 — revisión independiente"
+  titulo="Ronda 0 — revisión independiente"
+  [ "$modo" = "plan" ] && titulo="$titulo (plan)"
+  consenso_init_log "$run_dir" "$titulo"
+  # Persistir el modo para que el debate adapte su instrucción a este run.
+  printf '%s' "$modo" > "$run_dir/modo"
 
   # Ronda 0 corre codex y agy EN PARALELO (spec: "en paralelo"). Cada uno
   # escribe en su propio fichero, así que no hay colisión. Lanzamos ambos en
   # background, esperamos a cada uno por separado y solo entonces logueamos,
   # en orden determinista (codex, luego agy) según el estado capturado.
   local prompt_codex prompt_agy
-  prompt_codex="$(consenso_build_prompt "$CONSENSO_HOME/prompts/codex.md" "$diff_tmp")"
-  prompt_agy="$(consenso_build_prompt "$CONSENSO_HOME/prompts/agy.md" "$diff_tmp")"
+  prompt_codex="$(consenso_build_prompt "$CONSENSO_HOME/prompts/codex.md" "$content_tmp" "$modo")" \
+    || { rm -f "$content_tmp"; return 2; }
+  prompt_agy="$(consenso_build_prompt "$CONSENSO_HOME/prompts/agy.md" "$content_tmp" "$modo")" \
+    || { rm -f "$content_tmp"; return 2; }
 
   local pid_codex pid_agy rc_codex rc_agy
   consenso_agent_with_retry codex "$prompt_codex" "$run_dir/codex.json" &
@@ -264,9 +300,19 @@ cmd_round0() {
     consenso_log_append "$run_dir" "- agy: NO participó (salida inválida o fallo del CLI)"
   fi
 
-  rm -f "$diff_tmp"
+  rm -f "$content_tmp"
   # Última línea de stdout: el run_dir, para que Claude sepa dónde leer.
   printf '%s\n' "$run_dir"
+}
+
+consenso_debate_instruccion() {
+  # $1 = run_dir. Imprime la instrucción del debate según el modo persistido
+  # por round0 en $run_dir/modo (sin fichero o modo diff: revisión de código).
+  local contexto="una revisión de código"
+  if [ -f "$1/modo" ] && [ "$(cat "$1/modo")" = "plan" ]; then
+    contexto="la revisión de un plan de implementación (prosa, no código)"
+  fi
+  printf 'Estos son puntos en disputa de %s, con las críticas cruzadas de los otros revisores. Para cada punto, responde en prosa: ¿lo MANTIENES, lo REBATES o CEDES? Da un argumento técnico breve por cada uno.' "$contexto"
 }
 
 cmd_debate() {
@@ -301,12 +347,13 @@ cmd_debate() {
     return 64
   fi
 
-  local instruccion="Estos son puntos en disputa de una revisión de código, con las críticas cruzadas de los otros revisores. Para cada punto, responde en prosa: ¿lo MANTIENES, lo REBATES o CEDES? Da un argumento técnico breve por cada uno.
-
-"
+  local instruccion
+  instruccion="$(consenso_debate_instruccion "$run_dir")"
   local points
   points="$(cat "$points_file")"
-  local prompt="$instruccion$points"
+  local prompt="$instruccion
+
+$points"
 
   local agent
   for agent in codex agy; do

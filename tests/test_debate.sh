@@ -36,6 +36,17 @@ log3="$(cat "$rd3/log.md")"
 assert_contains "$log3" "debate ronda 3: codex NO respondió" "el log marca a codex como NO respondió"
 assert_contains "$log3" "debate ronda 3: agy respondió" "el log marca a agy como respondió"
 
+# La instrucción del debate se adapta al modo persistido por round0.
+. "$SCRIPT"
+sin_modo="$(consenso_debate_instruccion "$tmp")"
+assert_contains "$sin_modo" "revisión de código" "sin fichero de modo: instrucción de código"
+printf 'plan' > "$run_dir/modo"
+con_plan="$(consenso_debate_instruccion "$run_dir")"
+assert_contains "$con_plan" "plan de implementación" "modo plan: instrucción de plan"
+case "$con_plan" in
+  *"revisión de código"*) fail "modo plan: no debe hablar de revisión de código" ;;
+esac
+
 # Guards de uso: un flag que espera valor pero es el último token -> rc 64 (no crash set -u).
 assert_exit 64 bash "$SCRIPT" debate --points
 assert_exit 64 bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir

@@ -31,9 +31,11 @@ revisión, sáltala.
 
 ## Validar un plan (no un diff)
 
-El script solo añade texto al prompt: escribe el plan en un fichero temporal y
-pásalo con `--diff <fichero>`. Los agentes lo critican igual (el encabezado
-dirá "DIFF A REVISAR"; no importa).
+Pasa el fichero del plan (p.ej. el `.md` del plan ya escrito) con
+`--plan <fichero>` en vez de `--diff`: el prompt lleva el encabezado
+"PLAN A REVISAR" y una nota que
+orienta a los agentes a evaluar prosa (riesgos, pasos que faltan, supuestos
+dudosos, alternativas más simples) en lugar de código.
 
 ## Flujo
 
