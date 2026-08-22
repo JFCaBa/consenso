@@ -36,6 +36,10 @@ out1="$(CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdi
 run_dir1="$(printf '%s\n' "$out1" | tail -1)"
 assert_contains "$(cat "$run_dir1/log.md")" "consenso debilitado" "avisa con 1 solo agente"
 
+# CONSENSO_AGENTS con id desconocido: consenso_detectar devuelve rc 64, y ese
+# rc no debe perderse tras la limpieza del content_tmp en round0.
+assert_exit 64 env CONSENSO_AGENTS=codex,noexiste bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp"
+
 # 0 agentes -> rc 4.
 assert_exit 4 env CONSENSO_CODEX_BIN=/no/existe CONSENSO_AGY_BIN=/no/existe \
   CONSENSO_QWEN_BIN=/no/existe CONSENSO_OPENCODE_BIN=/no/existe \

@@ -430,8 +430,8 @@ cmd_round0() {
 
   # Ronda 0 corre el elenco detectado EN PARALELO (spec: "en paralelo"). Cada
   # agente escribe en su propio fichero, así que no hay colisión.
-  local elenco n id rol
-  elenco="$(consenso_detectar)" || { rm -f "$content_tmp"; return $?; }
+  local elenco n id rol rc_detect
+  elenco="$(consenso_detectar)" || { rc_detect=$?; rm -f "$content_tmp"; return "$rc_detect"; }
   n="$(printf '%s' "$elenco" | grep -c . || true)"
   if [ "$n" -eq 0 ]; then
     echo "consenso: ningún agente externo detectado. Instala alguno de:" >&2
