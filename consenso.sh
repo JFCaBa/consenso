@@ -479,6 +479,23 @@ cmd_round0() {
   printf '%s\n' "$run_dir"
 }
 
+consenso_elenco_de() {
+  # $1 = run_dir. Imprime el elenco de la run: el fichero `agentes` o, si es
+  # una run de una versión anterior, los <id>.json presentes cuyo basename es
+  # un id del registro (nunca redetecta, para no mezclar elencos; y nunca
+  # infiere agentes de JSON auxiliares como summary.json).
+  local run_dir="$1" id
+  if [ -f "$run_dir/agentes" ]; then
+    cat "$run_dir/agentes"
+    return 0
+  fi
+  for id in $(jq -r '.agentes | sort_by(.prioridad) | .[].id' "$CONSENSO_REGISTRY"); do
+    if [ -f "$run_dir/$id.json" ]; then
+      printf '%s\n' "$id"
+    fi
+  done
+}
+
 consenso_debate_instruccion() {
   # $1 = run_dir. Imprime la instrucción del debate según el modo persistido
   # por round0 en $run_dir/modo (sin fichero o modo diff: revisión de código).
@@ -530,7 +547,7 @@ cmd_debate() {
 $points"
 
   local agent
-  for agent in codex agy; do
+  for agent in $(consenso_elenco_de "$run_dir"); do
     if run_agent "$agent" "$prompt" "$run_dir/debate-$round-$agent.md"; then
       consenso_log_append "$run_dir" "- debate ronda $round: $agent respondió"
     else

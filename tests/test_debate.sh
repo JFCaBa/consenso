@@ -4,12 +4,15 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/lib.sh"
 export CONSENSO_CODEX_BIN="$HERE/stubs/codex"
 export CONSENSO_AGY_BIN="$HERE/stubs/agy"
+export CONSENSO_QWEN_BIN="$HERE/stubs/qwen"
+export CONSENSO_OPENCODE_BIN="$HERE/stubs/opencode"
 export CONSENSO_TIMESTAMP="2026-07-06-1200"
 SCRIPT="$HERE/../consenso.sh"
 
 tmp="$(mktemp -d)"
 run_dir="$tmp/.consenso/2026-07-06-1200"
 mkdir -p "$run_dir"
+printf 'codex\nagy\n' > "$run_dir/agentes"
 printf '# Punto en disputa\nCodex dice X, Agy dice no-X.\n' > "$tmp/points.txt"
 
 out="$(STUB_CODEX_OUT='Mantengo X porque...' STUB_AGY_OUT='Cedo, X es correcto.' \
@@ -51,6 +54,21 @@ esac
 assert_exit 64 bash "$SCRIPT" debate --points
 assert_exit 64 bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir
 assert_exit 64 bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir" --round
+
+# El run_dir del test declara un elenco de 3: el debate escribe 3 ficheros.
+printf 'codex\nagy\nqwen\n' > "$run_dir/agentes"
+out5="$(STUB_CODEX_OUT='Mantengo' STUB_AGY_OUT='Cedo' STUB_QWEN_OUT='Matizo' \
+  bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir" --round 4)"
+assert_contains "$(cat "$run_dir/debate-4-qwen.md")" "Matizo" "debate llega al tercer agente"
+
+# Sin fichero agentes: reconstruye desde <id>.json (nunca redetecta).
+rd_legacy="$tmp/.consenso/legacy"
+mkdir -p "$rd_legacy"
+printf '[]' > "$rd_legacy/codex.json"
+printf '[]' > "$rd_legacy/agy.json"
+. "$SCRIPT"
+assert_eq "$(consenso_elenco_de "$rd_legacy")" "codex
+agy" "reconstruye elenco desde artefactos"
 
 rm -rf "$tmp"
 echo "OK test_debate"
