@@ -8,9 +8,9 @@ export CONSENSO_OPENCODE_BIN="$HERE/stubs/opencode"
 
 tmp="$(mktemp -d)"
 
-# qwen: sobre {"response":"```json ... ```"} -> array validado.
+# qwen: stdout con fences directamente (modo texto) -> array validado.
 assert_exit 0 run_agent_json qwen "p" "$tmp/q.json"
-assert_contains "$(cat "$tmp/q.json")" "sin test" "qwen: desenvuelve response y quita fences"
+assert_contains "$(cat "$tmp/q.json")" "sin test" "qwen: quita fences del stdout"
 assert_exit 0 consenso_validate_json "$tmp/q.json"
 
 # opencode: stdout con fences directamente -> array validado.

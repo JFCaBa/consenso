@@ -236,6 +236,9 @@ consenso_registry_validar() {
       and (.json.salida? as $s | ["stdout","fichero"] | index($s) != null)
       and (.json.argv? | type=="array" and length>0 and all(.[]; type=="string"))
       and (.json.extract? | type=="string" and test("^\\.([a-zA-Z0-9_]+(\\.[a-zA-Z0-9_]+)*)?$"))
+      and (.modelo_auto == null or (.modelo_auto | type=="object"
+            and (.args | type=="array" and length>0 and all(.[]; type=="string"))
+            and (.match | type=="string" and length>0)))
     )] | length) == (.agentes | length)
     and ([.agentes[].id] | unique | length) == (.agentes | length)
   ' "$1" >/dev/null 2>&1; then
@@ -276,17 +279,56 @@ consenso_bin_de() {
   fi
 }
 
+consenso_resolver_modelo_auto() {
+  # $1 = id, $2 = objeto modelo_auto (JSON: {args:[...], match:"regex"}). Imprime
+  # el ID de modelo MÁS NUEVO que case con .match en la salida de
+  # `<bin> <args...>` (formato "ID<TAB>nombre", como `agy models`). "Más nuevo" =
+  # mayor número de versión embebido en el ID. Vacío si el CLI falla, tarda o no
+  # hay match: así consenso_model_de puede caer a modelo_default sin ruido.
+  local id="$1" auto="$2"
+  local bin match
+  bin="$(consenso_bin_de "$id")" || return 0
+  match="$(printf '%s' "$auto" | jq -r '.match')"
+  local args=() a
+  while IFS= read -r a; do
+    [ -n "$a" ] && args[${#args[@]}]="$a"
+  done < <(printf '%s' "$auto" | jq -r '.args[]')
+  [ "${#args[@]}" -eq 0 ] && return 0
+  # Timeout corto: consultar metadatos no debe bloquear el consenso.
+  local out
+  out="$(run_with_timeout 20 "$bin" "${args[@]}" < /dev/null 2>/dev/null)" || return 0
+  # Del primer campo (ID) de las líneas que casan con .match, el más nuevo por
+  # orden de versión. `sort -V` compara componente a componente (3.10 > 3.9 >
+  # 3.8, y trata bien sufijos de parche), evitando el error de comparar como
+  # float donde 3.10 se leería como 3.1 < 3.8.
+  printf '%s' "$out" \
+    | awk -F'\t' -v pat="$match" '$1 ~ pat { print $1 }' \
+    | sort -V | tail -n 1
+}
+
 consenso_model_de() {
-  # $1 = id. Modelo resuelto: CONSENSO_<ID>_MODEL o modelo_default (o vacío).
+  # $1 = id. Modelo resuelto, por precedencia: CONSENSO_<ID>_MODEL (override) >
+  # resolución dinámica vía modelo_auto (el CLI cambia de versión sin tocar el
+  # registro) > modelo_default > vacío.
   local var="CONSENSO_$(printf '%s' "$1" | tr 'a-z' 'A-Z')_MODEL"
   local override="${!var:-}"
   if [ -n "$override" ]; then
     printf '%s' "$override"
-  else
-    local obj
-    obj="$(consenso_agente_json "$1")" || return $?
-    printf '%s' "$obj" | jq -r '.modelo_default // ""'
+    return 0
   fi
+  local obj
+  obj="$(consenso_agente_json "$1")" || return $?
+  local auto
+  auto="$(printf '%s' "$obj" | jq -c '.modelo_auto // empty')"
+  if [ -n "$auto" ]; then
+    local resuelto
+    resuelto="$(consenso_resolver_modelo_auto "$1" "$auto")"
+    if [ -n "$resuelto" ]; then
+      printf '%s' "$resuelto"
+      return 0
+    fi
+  fi
+  printf '%s' "$obj" | jq -r '.modelo_default // ""'
 }
 
 consenso_timeout_de() {

@@ -13,6 +13,28 @@
 #   STUB_AGY_SLEEP / STUB_AGY_RC
 sleep "${STUB_AGY_SLEEP:-0}"
 
+# Subcomando `models`: emula `agy models` (lista "ID<TAB>nombre"), usado por la
+# resolución dinámica de modelo. STUB_AGY_MODELS override; STUB_AGY_MODELS_EMPTY
+# simula un CLI que no devuelve modelos.
+if [ "${1:-}" = "models" ]; then
+  if [ -n "${STUB_AGY_MODELS_EMPTY:-}" ]; then
+    exit "${STUB_AGY_RC:-0}"
+  fi
+  if [ -n "${STUB_AGY_MODELS:-}" ]; then
+    printf '%s\n' "$STUB_AGY_MODELS"
+  else
+    # Versiones desordenadas y con doble dígito (3.10) para verificar que la
+    # resolución elige el más nuevo por orden de versión, no por float.
+    printf 'Fetching available models...\n'
+    printf 'gemini-3.8-flash-high\tGemini 3.8 Flash (High)\n'
+    printf 'gemini-3.10-flash-high\tGemini 3.10 Flash (High)\n'
+    printf 'gemini-3.9-flash-high\tGemini 3.9 Flash (High)\n'
+    printf 'gemini-3.6-flash-high\tGemini 3.6 Flash (High)\n'
+    printf 'gemini-3.1-pro-high\tGemini 3.1 Pro (High)\n'
+  fi
+  exit "${STUB_AGY_RC:-0}"
+fi
+
 json_mode=0
 for a in "$@"; do
   case "$a" in

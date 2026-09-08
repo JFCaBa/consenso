@@ -20,7 +20,8 @@
       "lente": "arquitectura, contexto amplio, dependencias, coherencia del sistema",
       "rol": "prompts/agy.md",
       "prioridad": 2,
-      "modelo_default": "Gemini 3.5 Flash (High)",
+      "modelo_default": "gemini-3.8-flash-high",
+      "modelo_auto": { "args": ["models"], "match": "-flash-high$" },
       "prosa_argv": ["--dangerously-skip-permissions", "--model", "{MODEL}", "-p", "{PROMPT}"],
       "json": {
         "via": "schema",
@@ -38,9 +39,9 @@
       "prosa_argv": ["--approval-mode", "yolo", "-p", "{PROMPT}"],
       "json": {
         "via": "prompt",
-        "argv": ["--approval-mode", "yolo", "--output-format", "json", "-p", "{PROMPT}"],
+        "argv": ["--approval-mode", "yolo", "-p", "{PROMPT}"],
         "salida": "stdout",
-        "extract": ".response"
+        "extract": "."
       }
     },
     {
@@ -50,10 +51,10 @@
       "rol": "prompts/opencode.md",
       "prioridad": 4,
       "timeout": 200,
-      "prosa_argv": ["run", "{PROMPT}"],
+      "prosa_argv": ["run", "--pure", "{PROMPT}"],
       "json": {
         "via": "prompt",
-        "argv": ["run", "{PROMPT}"],
+        "argv": ["run", "--pure", "{PROMPT}"],
         "salida": "stdout",
         "extract": "."
       }

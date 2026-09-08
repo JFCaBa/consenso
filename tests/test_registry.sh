@@ -20,6 +20,9 @@ printf '{"agentes":[{"id":"a","bin":"x","lente":"l","rol":"r","prioridad":1,"pro
 assert_exit 65 consenso_registry_validar "$tmp/via.json"
 printf '{"agentes":[{"id":"a","bin":"x","lente":"l","rol":"r","prioridad":1,"prosa_argv":["a"],"json":{"via":"schema","argv":["a"],"salida":"stdout","extract":"map(.x)"}}]}' > "$tmp/extract.json"
 assert_exit 65 consenso_registry_validar "$tmp/extract.json"
+# modelo_auto es opcional, pero si existe debe estar bien formado (args no vacío, match string).
+printf '{"agentes":[{"id":"a","bin":"x","lente":"l","rol":"r","prioridad":1,"modelo_auto":{"args":[],"match":"x"},"prosa_argv":["a"],"json":{"via":"schema","argv":["a"],"salida":"stdout","extract":".x"}}]}' > "$tmp/modelo_auto.json"
+assert_exit 65 consenso_registry_validar "$tmp/modelo_auto.json"
 
 # Acceso a agentes.
 assert_contains "$(consenso_agente_json codex)" '"id":"codex"' "devuelve el objeto de codex"
@@ -35,8 +38,19 @@ assert_exit 2 consenso_timeout_de inexistente
 # Overrides por entorno.
 assert_eq "$(consenso_bin_de codex)" "codex" "bin por defecto"
 assert_eq "$(CONSENSO_CODEX_BIN=/tmp/otro consenso_bin_de codex)" "/tmp/otro" "override de bin"
-assert_eq "$(consenso_model_de agy)" "Gemini 3.5 Flash (High)" "modelo por defecto"
+
+# Resolución de modelo de agy (con stub de `agy models`).
+export CONSENSO_AGY_BIN="$HERE/stubs/agy"
+chmod +x "$CONSENSO_AGY_BIN"
+# modelo_auto elige el ID flash-high MÁS NUEVO por orden de versión. El stub
+# lista 3.10/3.9/3.8/... : debe ganar 3.10 (no 3.8 por comparación float, ni el
+# modelo_default 3.8 por fallback) -> prueba resolución dinámica y orden real.
+assert_eq "$(consenso_model_de agy)" "gemini-3.10-flash-high" "resolución dinámica: flash-high más nuevo (3.10 > 3.9 > 3.8)"
+# El override por entorno gana sin consultar al CLI.
 assert_eq "$(CONSENSO_AGY_MODEL=OtroModelo consenso_model_de agy)" "OtroModelo" "override de modelo"
+# Si `agy models` no devuelve modelos, cae a modelo_default.
+assert_eq "$(STUB_AGY_MODELS_EMPTY=1 consenso_model_de agy)" "gemini-3.8-flash-high" "fallback a modelo_default sin lista"
+unset CONSENSO_AGY_BIN
 assert_eq "$(consenso_model_de codex)" "" "sin modelo_default -> vacío"
 assert_eq "$(consenso_timeout_de codex)" "120" "timeout global por defecto"
 assert_eq "$(CONSENSO_TIMEOUT=7 consenso_timeout_de codex)" "7" "override global de timeout"
