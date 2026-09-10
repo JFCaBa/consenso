@@ -6,7 +6,7 @@
     {
       "name": "consenso",
       "description": "Revisión por consenso multiagente con debate cruzado y detección dinámica de CLIs",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "./",
       "author": { "name": "Jose", "email": "jfca68@gmail.com" }
     }
