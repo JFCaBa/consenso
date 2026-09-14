@@ -21,6 +21,13 @@ assert_contains "$(cat "$tmp/agy.json")" "docstring" "agy escribe su salida"
 # Timeout: el stub duerme 5s pero el timeout es 1s -> rc 124.
 assert_exit 124 bash -c "export STUB_CODEX_SLEEP=5 CONSENSO_TIMEOUT=1 CONSENSO_CODEX_BIN='$CONSENSO_CODEX_BIN'; . '$HERE/../consenso.sh'; run_agent codex x '$tmp/slow2.json'"
 
+# El timeout mata también los descendientes del launcher. Si el hijo sobrevive,
+# podría escribir una respuesta tardía encima del raw de un reintento posterior.
+late="$tmp/respuesta-tardia"
+assert_exit 124 run_with_timeout 1 bash -c '(sleep 2; printf late > "$1") & sleep 5' _ "$late"
+sleep 2
+assert_exit 1 test -e "$late"
+
 # run_agent con id desconocido -> rc 2.
 assert_exit 2 run_agent inexistente "p" "$tmp/x.json"
 

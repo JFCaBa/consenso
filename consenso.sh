@@ -35,20 +35,54 @@ consenso_build_prompt() {
 run_with_timeout() {
   # $1 = segundos, resto = comando. Devuelve 124 si se excede.
   local secs="$1"; shift
+  local had_monitor=0 timeout_dir timeout_marker
+  case "$-" in *m*) had_monitor=1 ;; esac
+
+  # Con job control, cada proceso lanzado en background lidera su propio grupo.
+  # Es importante matar el grupo completo: varios CLIs son launchers que dejan
+  # un hijo trabajando si solo se mata $cmd_pid. Ese hijo puede escribir una
+  # respuesta tardía encima de los artefactos del reintento.
+  timeout_dir="$(mktemp -d "${TMPDIR:-/tmp}/consenso-timeout.XXXXXX")" || {
+    echo "consenso: no se pudo crear el estado temporal del timeout" >&2
+    return 2
+  }
+  timeout_marker="$timeout_dir/fired"
+  if ! set -m; then
+    rmdir "$timeout_dir"
+    echo "consenso: no se pudo aislar el grupo de procesos del comando" >&2
+    return 2
+  fi
   "$@" &
   local cmd_pid=$!
-  ( sleep "$secs"; kill -9 "$cmd_pid" 2>/dev/null ) &
+  (
+    sleep "$secs"
+    if kill -0 "$cmd_pid" 2>/dev/null; then
+      : > "$timeout_marker"
+      kill -KILL -- "-$cmd_pid" 2>/dev/null
+      exit 124
+    fi
+  ) &
   local watcher=$!
+  [ "$had_monitor" -eq 1 ] || set +m
+
   wait "$cmd_pid" 2>/dev/null
   local rc=$?
-  # Si el watcher ya no existe, el comando fue matado por timeout.
+
   if kill -0 "$watcher" 2>/dev/null; then
-    pkill -P "$watcher" 2>/dev/null   # mata el sleep hijo mientras el watcher sigue vivo
-    kill "$watcher" 2>/dev/null
+    # El watcher también tiene grupo propio; matar solo el subshell dejaría su
+    # sleep vivo hasta agotar el timeout.
+    kill -KILL -- "-$watcher" 2>/dev/null
     wait "$watcher" 2>/dev/null
-    return "$rc"
+  else
+    wait "$watcher" 2>/dev/null
   fi
-  return 124
+  if [ -e "$timeout_marker" ]; then
+    rm -f "$timeout_marker"
+    rmdir "$timeout_dir"
+    return 124
+  fi
+  rmdir "$timeout_dir"
+  return "$rc"
 }
 
 run_agent() {
