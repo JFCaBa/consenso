@@ -6,6 +6,7 @@
       "lente": "corrección, edge-cases, lógica fina, bordes de seguridad",
       "rol": "prompts/codex.md",
       "prioridad": 1,
+      "timeout": 300,
       "prosa_argv": ["exec", "--skip-git-repo-check", "{PROMPT}"],
       "json": {
         "via": "schema",
@@ -20,12 +21,13 @@
       "lente": "arquitectura, contexto amplio, dependencias, coherencia del sistema",
       "rol": "prompts/agy.md",
       "prioridad": 2,
+      "timeout": 400,
       "modelo_default": "gemini-3.8-flash-high",
       "modelo_auto": { "args": ["models"], "match": "-flash-high$" },
-      "prosa_argv": ["--dangerously-skip-permissions", "--model", "{MODEL}", "-p", "{PROMPT}"],
+      "prosa_argv": ["--dangerously-skip-permissions", "--print-timeout", "6m", "--model", "{MODEL}", "-p", "{PROMPT}"],
       "json": {
         "via": "schema",
-        "argv": ["--dangerously-skip-permissions", "--model", "{MODEL}", "--output-format", "json", "--json-schema", "{SCHEMA}", "-p", "{PROMPT}"],
+        "argv": ["--dangerously-skip-permissions", "--print-timeout", "6m", "--model", "{MODEL}", "--output-format", "json", "--json-schema", "{SCHEMA}", "-p", "{PROMPT}"],
         "salida": "stdout",
         "extract": ".structured_output.hallazgos"
       }
@@ -36,6 +38,7 @@
       "lente": "tests, cobertura y rendimiento",
       "rol": "prompts/qwen.md",
       "prioridad": 3,
+      "timeout": 300,
       "prosa_argv": ["--approval-mode", "yolo", "-p", "{PROMPT}"],
       "json": {
         "via": "prompt",
