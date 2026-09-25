@@ -64,5 +64,39 @@ rc=$?
 assert_eq "$rc" "0" "reintenta tras fallo transitorio y acierta"
 assert_contains "$(cat "$tmp/rs.json")" "severidad" "el out conserva el hallazgo de la 2a llamada"
 
+# retry: el 1er intento falla con un error real en stderr; el 2o intento
+# agota igual pero sin escribir nada en stderr. run_agent_json reabre
+# $out.err con ">" en cada llamada, así que el 2o intento no debe borrar el
+# diagnóstico del 1o: es la única pista real que tenemos del fallo.
+: > "$tmp/errperdido.counter"
+STUB_CODEX_COUNTER="$tmp/errperdido.counter" \
+STUB_CODEX_STDERR_FIRST="fallo real: conexion rechazada" \
+STUB_CODEX_RC=1 \
+consenso_agent_with_retry codex "p" "$tmp/errperdido.json"
+rc=$?
+assert_eq "$rc" "1" "retry agotado devuelve 1 (con error real en el 1er intento)"
+assert_contains "$(cat "$tmp/errperdido.json.err")" "fallo real: conexion rechazada" \
+  "el error real del 1er intento no se pierde aunque el 2o intento sea mudo"
+case "$(cat "$tmp/errperdido.json.err")" in
+  *"intento 2:"*) fail "no debe fabricarse una sección 'intento 2:' si el 2o intento fue mudo" ;;
+esac
+
+# retry: ambos intentos fallan con un error real y DISTINTO cada uno -> los
+# dos deben quedar en $out.err, correctamente etiquetados (y no perderse el
+# del 2o intento por la sobreescritura de $out.err vía el bloque compuesto).
+: > "$tmp/errdoble.counter"
+STUB_CODEX_COUNTER="$tmp/errdoble.counter" \
+STUB_CODEX_STDERR_FIRST="fallo real intento 1: timeout de conexion" \
+STUB_CODEX_STDERR_SECOND="fallo real intento 2: rate limit excedido" \
+STUB_CODEX_RC=1 \
+consenso_agent_with_retry codex "p" "$tmp/errdoble.json"
+rc=$?
+assert_eq "$rc" "1" "retry agotado devuelve 1 (con error real en ambos intentos)"
+out_err="$(cat "$tmp/errdoble.json.err")"
+assert_contains "$out_err" "fallo real intento 1: timeout de conexion" \
+  "se conserva el error real del 1er intento"
+assert_contains "$out_err" "fallo real intento 2: rate limit excedido" \
+  "se conserva el error real del 2o intento, no se pierde por el truncado del bloque compuesto"
+
 rm -rf "$tmp"
 echo "OK test_validate_retry"

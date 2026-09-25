@@ -14,6 +14,13 @@
 #   STUB_CODEX_FAIL_FIRST -> si está seteada junto a STUB_CODEX_COUNTER, la 1a
 #                          llamada sale con rc=1 sin escribir nada (simula un
 #                          fallo transitorio del CLI que el reintento recupera).
+#   STUB_CODEX_STDERR_FIRST -> si está seteada junto a STUB_CODEX_COUNTER,
+#                          la 1a llamada escribe este texto en stderr (simula
+#                          un error real y diagnosticable en el 1er intento,
+#                          a diferencia de un 2o intento mudo).
+#   STUB_CODEX_STDERR_SECOND -> igual que STUB_CODEX_STDERR_FIRST pero para la
+#                          2a llamada (simula dos errores reales distintos,
+#                          uno por intento).
 #   STUB_CODEX_EMPTY    -> si está seteada, no escribe nada en -o (rc sigue
 #                          siendo STUB_CODEX_RC; simula salida vacía).
 #   STUB_CODEX_SLEEP    -> segundos a dormir antes de responder (default 0).
@@ -37,6 +44,12 @@ if [ -n "${STUB_CODEX_COUNTER:-}" ]; then
   fi
   next=$((count + 1))
   printf '%s' "$next" > "$STUB_CODEX_COUNTER"
+  if [ "$count" = "0" ] && [ -n "${STUB_CODEX_STDERR_FIRST:-}" ]; then
+    printf '%s\n' "$STUB_CODEX_STDERR_FIRST" >&2
+  fi
+  if [ "$count" = "1" ] && [ -n "${STUB_CODEX_STDERR_SECOND:-}" ]; then
+    printf '%s\n' "$STUB_CODEX_STDERR_SECOND" >&2
+  fi
   if [ "$count" = "0" ] && [ -n "${STUB_CODEX_FAIL_FIRST:-}" ]; then
     exit 1
   fi

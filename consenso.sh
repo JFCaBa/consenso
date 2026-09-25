@@ -211,13 +211,28 @@ consenso_agent_with_retry() {
   if run_agent_json "$agent" "$prompt" "$out"; then
     return 0
   fi
+  # Guardar el diagnóstico del 1er intento antes de reintentar: run_agent_json
+  # reabre $out.err con ">" en cada llamada, así que si el 2o intento agota
+  # sin escribir nada en stderr (fallo mudo), se perdería el único error real
+  # que teníamos.
+  local intento1_err=""
+  [ -s "$out.err" ] && intento1_err="$(cat "$out.err")"
   # Reintento simple: la única causa de fallo con JSON Schema forzado es un
   # error transitorio del CLI/API (timeout, capacidad, etc.), no un problema
   # de formato — no hace falta variar el prompt.
   if run_agent_json "$agent" "$prompt" "$out"; then
     return 0
   fi
-  echo "agente sin salida válida tras reintento; tratado como no participante" >> "$out.err"
+  # La redirección de este bloque abre y trunca "$out.err" antes de ejecutar
+  # nada dentro de él, así que hay que leer el stderr del 2o intento a una
+  # variable ANTES de abrir el bloque, o siempre se leería ya vacío.
+  local intento2_err=""
+  [ -s "$out.err" ] && intento2_err="$(cat "$out.err")"
+  {
+    [ -n "$intento1_err" ] && printf 'intento 1:\n%s\n' "$intento1_err"
+    [ -n "$intento2_err" ] && printf 'intento 2:\n%s\n' "$intento2_err"
+    echo "agente sin salida válida tras reintento; tratado como no participante"
+  } > "$out.err"
   printf '%s' "[]" > "$out"
   return 1
 }
