@@ -13,6 +13,7 @@ done
 
 assert_contains "$(cat "$P/codex.md")" "edge-case" "codex declara su lente"
 assert_contains "$(cat "$P/agy.md")" "arquitectura" "agy declara su lente"
+assert_contains "$(cat "$P/agy.md")" "NO lances subagentes" "agy no debe explorar ni delegar"
 assert_contains "$(cat "$P/claude.md")" "legibilidad" "claude declara su lente"
 
 echo "OK test_prompts"

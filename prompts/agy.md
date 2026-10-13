@@ -15,3 +15,9 @@ elemento es un hallazgo con estas claves exactas:
 - `propuesta`: el cambio concreto sugerido
 
 Si no encuentras nada, responde `[]`.
+
+## Restricciones de ejecución
+
+Todo el material a revisar viene en este mensaje. NO leas ficheros, NO ejecutes
+comandos, NO lances subagentes ni tareas en segundo plano: responde directamente
+con el JSON. Explorar el repo agota el timeout y deja la revisión sin salida.
