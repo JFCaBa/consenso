@@ -54,10 +54,10 @@
       "rol": "prompts/opencode.md",
       "prioridad": 4,
       "timeout": 200,
-      "prosa_argv": ["run", "--pure", "{PROMPT}"],
+      "prosa_argv": ["run", "--standalone", "{PROMPT}"],
       "json": {
         "via": "prompt",
-        "argv": ["run", "--pure", "{PROMPT}"],
+        "argv": ["run", "--standalone", "{PROMPT}"],
         "salida": "stdout",
         "extract": "."
       }
