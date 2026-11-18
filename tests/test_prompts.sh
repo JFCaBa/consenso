@@ -23,5 +23,8 @@ done
 assert_contains "$(cat "$P/alternativa.md")" "No ves esa" "alternativa diseña sin ver la propuesta"
 assert_contains "$(cat "$P/alternativa.md")" "NO mires el repositorio" "alternativa no explora el repo"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "consenso.sh\" alternativa" "la skill dispara el rediseño a ciegas"
+assert_contains "$(cat "$P/claude.md")" "fuera de alcance:" "claude también marca lo ajeno al cambio"
+assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "**Fuera de alcance**" "la síntesis separa lo ajeno al cambio"
+assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "no se debate" "lo ajeno al cambio no entra en el debate"
 
 echo "OK test_prompts"

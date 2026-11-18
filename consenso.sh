@@ -19,11 +19,20 @@ consenso_build_prompt() {
   fi
   cat "$rol_file"
   echo ""
+  # Alcance: sin esto los revisores objetan código preexistente y un fix de
+  # 20 líneas acaba arrastrando reescrituras ajenas al cambio.
+  echo "ALCANCE: revisa solo el cambio (en un plan, lo que el plan propone) y"
+  echo "lo que el cambio rompa o empeore. Si ves un problema en código o diseño"
+  echo "que ya existía y que el cambio no toca ni agrava, o una ampliación que"
+  echo "no sirve al objetivo, puedes señalarlo, pero márcalo como mucho \`menor\`"
+  echo "y empieza 'problema' con \"fuera de alcance: …\". No propongas ampliar"
+  echo "el cambio para arreglarlo."
+  echo ""
   if [ "$modo" = "plan" ]; then
     echo "NOTA: lo que sigue es un PLAN DE IMPLEMENTACIÓN en prosa, no un diff."
-    echo "Evalúa el diseño con tu lente: riesgos, pasos que faltan, supuestos"
-    echo "dudosos y alternativas más simples. En 'ubicacion' referencia la"
-    echo "sección o el paso del plan."
+    echo "Evalúa el diseño con tu lente: riesgos, pasos que faltan"
+    echo "para el objetivo del plan, supuestos dudosos y alternativas más"
+    echo "simples. En 'ubicacion' referencia la sección o el paso del plan."
     echo ""
     echo "----- PLAN A REVISAR -----"
   else

@@ -51,13 +51,19 @@ dudosos, alternativas más simples) en lugar de código.
 2. **Tu revisión.** Revisa tú el mismo diff con tu lente (legibilidad,
    mantenibilidad) y produce tus propios hallazgos en el mismo formato.
 
-3. **Síntesis.** Junta los tres conjuntos de hallazgos y clasifícalos:
+3. **Síntesis.** Junta los tres conjuntos de hallazgos.
+   Primero filtra lo **Fuera de alcance**: hallazgos que no son sobre el
+   cambio ni sobre algo que el cambio rompa o empeore (los agentes lo marcan
+   con "fuera de alcance:", pero juzga tú aunque no lo marquen). Eso
+   no se debate, no entra en el plan ni en el diff, aunque lo vean varios agentes:
+   va al informe con su evidencia y decide el usuario. No amplíes el cambio
+   por tu cuenta para arreglarlo. El resto clasifícalo:
    - **Acuerdo**: varios señalan lo mismo (misma ubicación + mismo problema) →
      alta confianza.
    - **Singleton**: solo uno lo ve → candidato a debate.
    - **Conflicto**: uno propone X y otro lo contradice → a debate.
 
-4. **Debate (solo si hay singletons/conflictos).** Escribe un fichero de puntos
+4. **Debate (solo si hay singletons/conflictos dentro del alcance).** Escribe un fichero de puntos
    en disputa con las críticas cruzadas y ejecuta
    `bash "${CLAUDE_PLUGIN_ROOT}/consenso.sh" debate --points <fichero> --run-dir <run_dir> --round 1`.
    Lee las respuestas `debate-1-<id>.md` de cada agente del elenco. Si
@@ -93,11 +99,13 @@ dudosos, alternativas más simples) en lugar de código.
    Los casos límite con entradas reales o de impacto grave (seguridad, pérdida
    de datos) no cuentan para esta regla: se arreglan.
 
-## Informe (siempre, 3 secciones)
+## Informe (siempre, 3 secciones + 1 opcional)
 
 - **Acordado** → aplicar (indica qué agentes lo respaldaron).
 - **Resuelto por debate** → qué se decidió, quién cedió y por qué.
 - **Sin resolver** → decisión del usuario, con las dos posturas.
+- **Fuera de alcance** (si hay) → qué vio cada agente y su evidencia; no se
+  aplica salvo que el usuario lo pida, y entonces va como cambio aparte.
 
 Añade el informe final al `run_dir/log.md` para trazabilidad. Si un agente no
 participó (lo dice el log de round0), sigue adelante y hazlo constar en el

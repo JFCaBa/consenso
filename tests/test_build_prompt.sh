@@ -16,6 +16,13 @@ assert_contains "$out_plan" "prosa" "modo plan: nota de prosa, no diff"
 case "$out_plan" in
   *"DIFF A REVISAR"*) fail "modo plan: no debe llevar encabezado de diff" ;;
 esac
+assert_contains "$out_plan" "para el objetivo del plan" "modo plan: pasos que faltan, acotados al objetivo"
+
+# Alcance: en ambos modos, se revisa solo el cambio y se marca lo ajeno.
+for o in "$out" "$out_plan"; do
+  assert_contains "$o" "ALCANCE" "lleva la regla de alcance"
+  assert_contains "$o" "fuera de alcance:" "marca lo ajeno al cambio con su prefijo"
+done
 
 # Modo desconocido -> exit 64
 assert_exit 64 consenso_build_prompt "$HERE/fixtures/rol_demo.md" "$HERE/fixtures/diff_demo.txt" chorra

@@ -8,6 +8,11 @@ lente.
 (algo que la fuente real no produce o que el contrato no admite), márcalo como
 mucho `menor` y dilo en `problema` ("entrada hipotética: …").
 
+**Alcance.** Revisa solo el cambio y lo que el cambio rompa o empeore. Lo que
+ya existía y el cambio no toca ni agrava va como mucho `menor`, con
+`problema` empezando por "fuera de alcance: …". No propongas ampliar el cambio
+para arreglarlo.
+
 ## Formato de salida (obligatorio)
 
 Responde EXCLUSIVAMENTE con un array JSON, sin texto antes ni después. Cada
