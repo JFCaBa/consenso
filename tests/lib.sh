@@ -1,4 +1,18 @@
 # Helpers de aserción para tests en bash plano. Hacer `source`.
+
+# Tests herméticos: ninguna variable CONSENSO_* del entorno del usuario (p.ej.
+# CONSENSO_AGENTS para excluir un agente sin crédito, o CONSENSO_TIMEOUT) debe
+# cambiar el resultado. Cada test fija después las que necesita.
+for _consenso_var in $(compgen -e | grep '^CONSENSO_'); do
+  unset "$_consenso_var"
+done
+unset _consenso_var
+
+registro_sin_timeouts() {
+  # $1 = fichero destino. Copia del registro sin `timeout` por agente, para
+  # probar el fallback a CONSENSO_TIMEOUT (el timeout propio tiene prioridad).
+  jq 'del(.agentes[].timeout)' "$(dirname "${BASH_SOURCE[0]}")/../agents/registry.json" > "$1"
+}
 fail() {
   echo "ASSERT FAIL: $1" >&2
   exit 1

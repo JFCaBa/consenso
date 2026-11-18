@@ -13,8 +13,15 @@ assert_eq "${ARGV[0]}" "exec" "primer argumento literal"
 assert_eq "${ARGV[2]}" "$prompt" "el prompt llega intacto (newline y comillas)"
 
 # JSON de agy: sustituye {MODEL}, {SCHEMA} y {PROMPT}.
+# El valor se busca tras --model, no por posición: añadir flags al registro
+# (p.ej. --print-timeout) no debe romper el test.
 consenso_argv agy json "p" "/ruta/schema.json" "/ruta/raw.json" "Modelo X"
-assert_eq "${ARGV[2]}" "Modelo X" "sustituye {MODEL}"
+modelo=""; prev=""
+for a in "${ARGV[@]}"; do
+  [ "$prev" = "--model" ] && modelo="$a"
+  prev="$a"
+done
+assert_eq "$modelo" "Modelo X" "sustituye {MODEL}"
 assert_contains "${ARGV[*]}" "/ruta/schema.json" "sustituye {SCHEMA}"
 
 # Errores de uso.

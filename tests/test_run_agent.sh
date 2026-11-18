@@ -18,8 +18,10 @@ assert_contains "$(cat "$tmp/codex.json")" "division por cero" "codex escribe su
 run_agent agy "prompt de prueba" "$tmp/agy.json"
 assert_contains "$(cat "$tmp/agy.json")" "docstring" "agy escribe su salida"
 
-# Timeout: el stub duerme 5s pero el timeout es 1s -> rc 124.
-assert_exit 124 bash -c "export STUB_CODEX_SLEEP=5 CONSENSO_TIMEOUT=1 CONSENSO_CODEX_BIN='$CONSENSO_CODEX_BIN'; . '$HERE/../consenso.sh'; run_agent codex x '$tmp/slow2.json'"
+# Timeout: el stub duerme 5s pero el timeout es 1s -> rc 124. Registro sin
+# timeout propio para que mande CONSENSO_TIMEOUT.
+registro_sin_timeouts "$tmp/sin-timeouts.json"
+assert_exit 124 bash -c "export STUB_CODEX_SLEEP=5 CONSENSO_TIMEOUT=1 CONSENSO_REGISTRY='$tmp/sin-timeouts.json' CONSENSO_CODEX_BIN='$CONSENSO_CODEX_BIN'; . '$HERE/../consenso.sh'; run_agent codex x '$tmp/slow2.json'"
 
 # El timeout mata también los descendientes del launcher. Si el hijo sobrevive,
 # podría escribir una respuesta tardía encima del raw de un reintento posterior.

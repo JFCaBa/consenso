@@ -52,8 +52,13 @@ assert_eq "$(CONSENSO_AGY_MODEL=OtroModelo consenso_model_de agy)" "OtroModelo" 
 assert_eq "$(STUB_AGY_MODELS_EMPTY=1 consenso_model_de agy)" "gemini-3.8-flash-high" "fallback a modelo_default sin lista"
 unset CONSENSO_AGY_BIN
 assert_eq "$(consenso_model_de codex)" "" "sin modelo_default -> vacío"
-assert_eq "$(consenso_timeout_de codex)" "120" "timeout global por defecto"
-assert_eq "$(CONSENSO_TIMEOUT=7 consenso_timeout_de codex)" "7" "override global de timeout"
+# El timeout propio del registro gana a CONSENSO_TIMEOUT (ver README).
+assert_eq "$(consenso_timeout_de codex)" "$(jq -r '.agentes[] | select(.id=="codex") | .timeout' "$CONSENSO_REGISTRY")" "timeout propio del registro"
+assert_eq "$(CONSENSO_TIMEOUT=7 consenso_timeout_de codex)" "$(jq -r '.agentes[] | select(.id=="codex") | .timeout' "$CONSENSO_REGISTRY")" "el timeout propio gana al global"
+# Sin timeout propio: CONSENSO_TIMEOUT y, sin él, 120.
+registro_sin_timeouts "$tmp/sin-timeouts.json"
+assert_eq "$(CONSENSO_REGISTRY="$tmp/sin-timeouts.json" consenso_timeout_de codex)" "120" "timeout global por defecto"
+assert_eq "$(CONSENSO_REGISTRY="$tmp/sin-timeouts.json" CONSENSO_TIMEOUT=7 consenso_timeout_de codex)" "7" "override global de timeout"
 
 rm -rf "$tmp"
 echo "OK test_registry"
