@@ -16,4 +16,12 @@ assert_contains "$(cat "$P/agy.md")" "arquitectura" "agy declara su lente"
 assert_contains "$(cat "$P/agy.md")" "NO lances subagentes" "agy no debe explorar ni delegar"
 assert_contains "$(cat "$P/claude.md")" "legibilidad" "claude declara su lente"
 
+for f in codex agy qwen opencode claude; do
+  assert_contains "$(cat "$P/$f.md")" "Calibra por realismo" "prompts/$f.md calibra por realismo"
+  assert_contains "$(cat "$P/$f.md")" "entrada hipotética" "prompts/$f.md marca las entradas hipotéticas"
+done
+assert_contains "$(cat "$P/alternativa.md")" "No ves esa" "alternativa diseña sin ver la propuesta"
+assert_contains "$(cat "$P/alternativa.md")" "NO mires el repositorio" "alternativa no explora el repo"
+assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "consenso.sh\" alternativa" "la skill dispara el rediseño a ciegas"
+
 echo "OK test_prompts"

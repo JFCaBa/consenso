@@ -91,6 +91,15 @@ bash consenso.sh round0 --plan plan.md --workdir .   # revisión de un plan (pro
 bash consenso.sh debate --points p.txt --run-dir .consenso/<ts>   # ronda de debate
 ```
 
+Si las rondas entran en bucle de casos límite (cada arreglo abre otro caso
+hipotético en la misma zona), la skill cambia los roles. Escribe un enunciado
+del problema sin su solución, y un agente diseña la suya a ciegas, desde un
+directorio vacío y sin ver la propuesta:
+
+```bash
+bash consenso.sh alternativa --problem problema.md --workdir .   # rediseño a ciegas (codex por defecto; --agent <id>)
+```
+
 Los artefactos y el log quedan en `.consenso/<timestamp>/`.
 
 ## Tests

@@ -66,6 +66,33 @@ dudosos, alternativas más simples) en lugar de código.
 5. **Fallback (deadlock tras 1–2 rondas).** No fuerces un ganador: presenta al
    usuario las dos posturas enfrentadas con tu recomendación y deja que decida.
 
+6. **Bucle de casos límite → cambio de roles.** Cuenta los ciclos
+   revisión → arreglo → revisión sobre el mismo cambio. Para a partir del
+   **tercer ciclo** si los hallazgos nuevos que siguen apareciendo son sobre
+   todo casos límite en la misma zona y con entradas que los datos reales no
+   producen. Señales: cada parche abre otro caso, el código de esa zona crece
+   mucho más que el arreglo de fondo, o los hallazgos llevan "entrada
+   hipotética". En ese caso **no apliques otro parche**:
+   1. Escribe un enunciado del problema **sin tu solución**: objetivo,
+      restricciones, datos reales medidos (p.ej. "en la medición hubo un solo
+      429") e interfaces existentes que deba respetar. No incluyas tu diseño,
+      tu código ni los hallazgos anteriores: eso sesgaría el rediseño.
+   2. Ejecuta
+      `bash "${CLAUDE_PLUGIN_ROOT}/consenso.sh" alternativa --problem <fichero> --workdir <repo>`
+      (por defecto usa el agente de mayor prioridad, normalmente codex; con
+      `--agent <id>` eliges otro). El agente diseña su solución a ciegas, desde
+      un directorio vacío. Lee el único `alternativa-*.md` del `run_dir` (el
+      título de `log.md` dice qué agente lo hizo). Si no hay exactamente uno, la
+      ejecución falló: mira `log.md` y el `.err` del agente.
+   3. Compara las dos soluciones: tamaño, piezas móviles y qué deja cada una
+      fuera de alcance a propósito. Presenta al usuario tu recomendación: la
+      tuya simplificada, la suya, o una mezcla. **Que decida el usuario.** Si
+      elige rehacer, la nueva versión pasa por una sola ronda de consenso sobre
+      el diff.
+
+   Los casos límite con entradas reales o de impacto grave (seguridad, pérdida
+   de datos) no cuentan para esta regla: se arreglan.
+
 ## Informe (siempre, 3 secciones)
 
 - **Acordado** → aplicar (indica qué agentes lo respaldaron).

@@ -666,6 +666,100 @@ $points"
   printf '%s\n' "$run_dir"
 }
 
+cmd_alternativa() {
+  # Rediseño a ciegas: un agente (por defecto el de mayor prioridad detectado,
+  # normalmente codex) diseña su propia solución leyendo SOLO el enunciado del
+  # problema, sin ver la propuesta de Claude. Rompe el bucle de casos límite
+  # cambiando de rol: el revisor pasa a diseñar.
+  local workdir="."
+  local problem_file=""
+  local agent=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --workdir|--problem|--agent)
+        if [ $# -lt 2 ]; then
+          echo "alternativa: falta valor para $1" >&2
+          return 64
+        fi
+        case "$1" in
+          --workdir) workdir="$2" ;;
+          --problem) problem_file="$2" ;;
+          --agent) agent="$2" ;;
+        esac
+        shift 2 ;;
+      *) echo "alternativa: opción desconocida: $1" >&2; return 64 ;;
+    esac
+  done
+
+  consenso_registry_validar "$CONSENSO_REGISTRY" || return $?
+
+  if [ -z "$problem_file" ] || [ ! -s "$problem_file" ]; then
+    echo "alternativa: falta --problem <fichero> (o está vacío)" >&2
+    return 64
+  fi
+
+  local elenco rc_detect
+  elenco="$(consenso_detectar)" || { rc_detect=$?; return "$rc_detect"; }
+  if [ -z "$agent" ]; then
+    agent="$(printf '%s\n' "$elenco" | head -1)"
+    if [ -z "$agent" ]; then
+      echo "alternativa: ningún agente externo detectado" >&2
+      return 4
+    fi
+  elif ! printf '%s\n' "$elenco" | grep -qxF "$agent"; then
+    echo "alternativa: el agente '$agent' no está en el elenco detectado" >&2
+    return 64
+  fi
+
+  local prompt
+  prompt="$(cat "$CONSENSO_HOME/prompts/alternativa.md")
+
+$(cat "$problem_file")"
+
+  local run_dir out
+  run_dir="$(consenso_run_dir "$workdir")"
+  run_dir="$(cd "$run_dir" && pwd)"
+  consenso_init_log "$run_dir" "Rediseño a ciegas ($agent)"
+  out="$run_dir/alternativa-$agent.md"
+
+  # El agente corre desde un directorio vacío: si se lanzara en el repo, un
+  # CLI agéntico podría leer el árbol de trabajo y ver la propuesta que
+  # precisamente debe ignorar.
+  # Tras el cd, las rutas relativas del registro o del binario (p.ej.
+  # CONSENSO_CODEX_BIN=./bin/codex) dejarían de resolverse: se fijan antes.
+  # Un nombre sin '/' sigue resolviéndose por PATH.
+  local bin_var bin registro
+  bin_var="CONSENSO_$(printf '%s' "$agent" | tr 'a-z' 'A-Z')_BIN"
+  bin="$(consenso_bin_de "$agent")" || return $?
+  case "$bin" in
+    /*) : ;;
+    */*) bin="$PWD/$bin" ;;
+  esac
+  registro="$CONSENSO_REGISTRY"
+  case "$registro" in
+    /*) : ;;
+    *) registro="$PWD/$registro" ;;
+  esac
+
+  local ciego rc
+  ciego="$(mktemp -d)"
+  (
+    CONSENSO_REGISTRY="$registro"
+    printf -v "$bin_var" '%s' "$bin"
+    cd "$ciego" && run_agent "$agent" "$prompt" "$out"
+  )
+  rc=$?
+  rmdir "$ciego" 2>/dev/null || rm -rf "$ciego"
+  if [ "$rc" -eq 0 ]; then
+    consenso_log_append "$run_dir" "- alternativa: $agent respondió"
+  else
+    consenso_log_append "$run_dir" "- alternativa: $agent NO respondió (fallo del CLI o timeout)"
+  fi
+
+  printf '%s\n' "$run_dir"
+  return "$rc"
+}
+
 cmd_doctor() {
   # Diagnóstico: recorre TODO el registro. NOT FOUND para los no instalados
   # (con cómo sumarlos); para los instalados, una llamada real mínima por su
@@ -698,8 +792,9 @@ main() {
   case "$sub" in
     round0) cmd_round0 "$@" ;;
     debate) cmd_debate "$@" ;;
+    alternativa) cmd_alternativa "$@" ;;
     doctor) cmd_doctor "$@" ;;
-    "") echo "uso: consenso.sh <round0|debate|doctor> [opciones]" >&2; return 64 ;;
+    "") echo "uso: consenso.sh <round0|debate|alternativa|doctor> [opciones]" >&2; return 64 ;;
     *) echo "consenso: subcomando desconocido: $sub" >&2; return 64 ;;
   esac
 }

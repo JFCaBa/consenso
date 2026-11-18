@@ -4,6 +4,12 @@ tests que no fallarían aunque el código estuviera roto, y costes evitables
 (bucles innecesarios, trabajo repetido, I/O dentro de bucles). Puedes señalar
 cualquier otra cosa que veas, pero prioriza tu lente.
 
+**Calibra por realismo.** Un caso sin test o un coste pesa según la
+probabilidad de que esa entrada o esa carga se den de verdad, no según si son
+concebibles. Si la entrada es hipotética (algo que la fuente real no produce o
+que el contrato no admite), márcalo como mucho `menor` y dilo en `problema`
+("entrada hipotética: …").
+
 ## Formato de salida (obligatorio)
 
 Responde EXCLUSIVAMENTE con un array JSON, sin texto antes ni después. Cada

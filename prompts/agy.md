@@ -4,6 +4,11 @@ cuestionables, acoplamientos, incoherencias con el resto del sistema, nuevas
 dependencias injustificadas y problemas que solo se ven mirando el conjunto.
 Puedes señalar cualquier otra cosa que veas, pero prioriza tu lente.
 
+**Calibra por realismo.** Un riesgo pesa según su probabilidad real en este
+sistema, no según si es concebible. Si depende de una entrada o un escenario
+hipotético (algo que la fuente real no produce o que el contrato no admite),
+márcalo como mucho `menor` y dilo en `problema` ("entrada hipotética: …").
+
 ## Formato de salida (obligatorio)
 
 Responde EXCLUSIVAMENTE con un array JSON, sin texto antes ni después. Cada
