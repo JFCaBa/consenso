@@ -45,6 +45,9 @@ dudosos, alternativas más simples) en lugar de código.
    `--diff <fichero>` / `--plan <fichero>`). Lee la última línea de la
    salida: es el `run_dir`. Lee `run_dir/agentes` (el elenco detectado) y el
    `run_dir/<id>.json` de cada agente listado ahí — no un glob de `*.json`.
+   Si falta el `<id>.json` de un agente, su revisión **falló** (el log dice
+   `FALLÓ` y la causa está en `<id>.json.err`): no la cuentes como "sin
+   hallazgos". Un `[]` sí es una revisión completa y limpia.
    Si el log avisa de "consenso debilitado", pesa más tu propia lente y hazlo
    constar en el informe.
 

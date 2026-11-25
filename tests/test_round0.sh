@@ -57,8 +57,35 @@ assert_exit 65 env CONSENSO_REGISTRY="$tmp/reg-malo.json" \
 # Un agente falla (rc!=0 y salida basura): el otro sigue, round0 no aborta.
 out2="$(STUB_CODEX_RC=1 STUB_CODEX_OUT='boom' bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp")"
 run_dir2="$(printf '%s\n' "$out2" | tail -1)"
-assert_eq "$(cat "$run_dir2/codex.json")" "[]" "codex fallido queda en []"
+# Un fallo no puede parecer una revisión sin hallazgos: sin <id>.json y el log
+# lo dice claro.
+[ ! -e "$run_dir2/codex.json" ] || fail "codex fallido no debe dejar codex.json (parecería [] = OK)"
+assert_contains "$(cat "$run_dir2/log.md")" "codex: FALLÓ" "el log marca la revisión fallida"
 assert_contains "$(cat "$run_dir2/agy.json")" "docstring" "agy sigue funcionando"
+
+# El revisor trabaja en el repo revisado, no en el directorio del llamante.
+mkdir -p "$tmp/repo" "$tmp/otro"
+( cd "$tmp/otro" && STUB_CODEX_PWD_FILE="$tmp/pwd.txt" CONSENSO_AGENTS=codex \
+    bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp/repo" >/dev/null )
+assert_eq "$(cat "$tmp/pwd.txt")" "$(cd "$tmp/repo" && pwd)" "round0 lanza el CLI en --workdir"
+
+# Rutas relativas de binario y registro siguen valiendo tras el cd al workdir.
+mkdir -p "$tmp/llamante/bin"
+cp "$HERE/stubs/codex" "$tmp/llamante/bin/codex"
+cp "$HERE/../agents/registry.json" "$tmp/llamante/reg.json"
+out_rel="$( cd "$tmp/llamante" && CONSENSO_AGENTS=codex CONSENSO_CODEX_BIN=./bin/codex \
+    CONSENSO_REGISTRY=reg.json bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp/repo" )"
+assert_contains "$(cat "$(printf '%s\n' "$out_rel" | tail -1)/codex.json")" "division por cero" \
+  "binario y registro relativos se resuelven desde el llamante"
+
+# .consenso/ no ensucia el git status del repo revisado.
+assert_eq "$(cat "$tmp/repo/.consenso/.gitignore")" "*" "crea .consenso/.gitignore"
+
+# Un prompt con & llega intacto (bash 5.2 activa patsub_replacement).
+printf '+a && b & c\n' > "$tmp/amp.txt"
+CONSENSO_AGENTS=codex STUB_CODEX_ARGS_FILE="$tmp/args.txt" \
+  bash "$SCRIPT" round0 --diff "$tmp/amp.txt" --workdir "$tmp/repo" >/dev/null
+assert_contains "$(cat "$tmp/args.txt")" "+a && b & c" "los & del prompt llegan intactos"
 
 # round0 con --plan: revisa el plan como prosa y lo marca en el log.
 printf '# Plan\n1. Anadir endpoint\n2. Migrar tabla usuarios\n' > "$tmp/plan.md"

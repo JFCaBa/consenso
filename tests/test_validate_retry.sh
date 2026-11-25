@@ -43,12 +43,12 @@ STUB_CODEX_EMPTY=1 run_agent_json codex "p" "$tmp/empty2.json"
 rc=$?
 assert_eq "$rc" "1" "salida vacia se trata como fallo"
 
-# retry: agente falla las dos veces -> out queda en [] y rc 1, con
+# retry: agente falla las dos veces -> sin out (un [] parecería "sin hallazgos") y rc 1, con
 # diagnóstico preservado en $out.err.
 STUB_CODEX_RC=1 consenso_agent_with_retry codex "p" "$tmp/r.json"
 rc=$?
 assert_eq "$rc" "1" "retry agotado devuelve 1"
-assert_eq "$(cat "$tmp/r.json")" "[]" "retry agotado deja array vacio"
+[ ! -e "$tmp/r.json" ] || fail "retry agotado no debe dejar out (parecería [] = OK)"
 assert_contains "$(cat "$tmp/r.json.err")" "no participante" "el diagnostico queda en out.err"
 
 # retry: agente responde bien a la primera -> rc 0.
@@ -97,6 +97,15 @@ assert_contains "$out_err" "fallo real intento 1: timeout de conexion" \
   "se conserva el error real del 1er intento"
 assert_contains "$out_err" "fallo real intento 2: rate limit excedido" \
   "se conserva el error real del 2o intento, no se pierde por el truncado del bloque compuesto"
+
+# E2BIG (prompt demasiado grande para argv): el diagnóstico lo explica.
+printf '[]' > "$tmp/big.json"
+STUB_CODEX_COUNTER="$tmp/cnt-big" STUB_CODEX_RC=126 \
+  STUB_CODEX_STDERR_FIRST="codex: Argument list too long" \
+  STUB_CODEX_STDERR_SECOND="codex: Argument list too long" \
+  consenso_agent_with_retry codex "p" "$tmp/big.json"
+[ ! -e "$tmp/big.json" ] || fail "un out previo no sobrevive a un fallo"
+assert_contains "$(cat "$tmp/big.json.err")" "prompt demasiado grande" "E2BIG: diagnóstico explícito"
 
 rm -rf "$tmp"
 echo "OK test_validate_retry"

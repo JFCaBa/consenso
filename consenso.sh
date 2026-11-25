@@ -2,6 +2,10 @@
 # consenso.sh — orquestador mecánico del flujo de consenso multiagente.
 # Compatible con bash 3.2. Depende de: jq, git, utilidades POSIX.
 set -u
+# bash >=5.2 activa patsub_replacement: en ${var//pat/$rep} cada & de $rep se
+# sustituye por el texto buscado, y el prompt ("a && b") llegaría corrupto. No
+# vale entrecomillar "$rep": bash 3.2 (macOS) metería las comillas literales.
+shopt -u patsub_replacement 2>/dev/null || true
 
 consenso_build_prompt() {
   # $1 = fichero de rol, $2 = fichero de contenido, $3 = (opcional) modo
@@ -240,9 +244,15 @@ consenso_agent_with_retry() {
   {
     [ -n "$intento1_err" ] && printf 'intento 1:\n%s\n' "$intento1_err"
     [ -n "$intento2_err" ] && printf 'intento 2:\n%s\n' "$intento2_err"
+    case "$intento1_err$intento2_err" in
+      *"Argument list too long"*)
+        echo "causa: prompt demasiado grande para pasarlo por argv (E2BIG)" ;;
+    esac
     echo "agente sin salida válida tras reintento; tratado como no participante"
   } > "$out.err"
-  printf '%s' "[]" > "$out"
+  # Sin $out a propósito: un [] sería indistinguible de "revisión sin
+  # hallazgos" y un fallo se leería como un OK.
+  rm -f "$out"
   return 1
 }
 
@@ -252,6 +262,8 @@ consenso_run_dir() {
   local ts="${CONSENSO_TIMESTAMP:-$(date +%Y-%m-%d-%H%M%S)}"
   local dir="$workdir/.consenso/$ts"
   mkdir -p "$dir"
+  # Los runs son artefactos locales: que no aparezcan en el git status del repo.
+  [ -e "$workdir/.consenso/.gitignore" ] || printf '*\n' > "$workdir/.consenso/.gitignore"
   printf '%s' "$dir"
 }
 
@@ -322,6 +334,25 @@ consenso_rol_de() {
   local obj
   obj="$(consenso_agente_json "$1")" || return $?
   printf '%s' "$obj" | jq -r '.rol'
+}
+
+consenso_fijar_rutas() {
+  # $1 = id. Llamar en un subshell ANTES de cambiar de directorio: fija como
+  # absolutas las rutas relativas del registro y del binario del agente (p.ej.
+  # CONSENSO_CODEX_BIN=./bin/codex), que tras el cd dejarían de resolverse.
+  # Un nombre sin '/' sigue resolviéndose por PATH.
+  local bin_var bin
+  case "$CONSENSO_REGISTRY" in
+    /*) : ;;
+    *) CONSENSO_REGISTRY="$PWD/$CONSENSO_REGISTRY" ;;
+  esac
+  bin_var="CONSENSO_$(printf '%s' "$1" | tr 'a-z' 'A-Z')_BIN"
+  bin="$(consenso_bin_de "$1")" || return $?
+  case "$bin" in
+    /*) : ;;
+    */*) bin="$PWD/$bin" ;;
+  esac
+  printf -v "$bin_var" '%s' "$bin"
 }
 
 consenso_bin_de() {
@@ -529,6 +560,8 @@ cmd_round0() {
 
   local run_dir titulo
   run_dir="$(consenso_run_dir "$workdir")"
+  # Absoluto: los agentes se lanzan con cwd=$workdir (ver abajo).
+  run_dir="$(cd "$run_dir" && pwd)"
   titulo="Ronda 0 — revisión independiente"
   [ "$modo" = "plan" ] && titulo="$titulo (plan)"
   consenso_init_log "$run_dir" "$titulo"
@@ -565,7 +598,9 @@ cmd_round0() {
   # Lanzar todos en paralelo; esperar por pid para saber quién participó.
   local pids=() j=0
   for id in "${ids[@]}"; do
-    consenso_agent_with_retry "$id" "${prompts[$j]}" "$run_dir/$id.json" &
+    # cwd = repo revisado: si el CLI explora, que explore ese repo y no el
+    # directorio desde el que se llamó a consenso.
+    ( consenso_fijar_rutas "$id" && cd "$workdir" && consenso_agent_with_retry "$id" "${prompts[$j]}" "$run_dir/$id.json" ) &
     pids[${#pids[@]}]=$!
     j=$((j + 1))
   done
@@ -576,7 +611,7 @@ cmd_round0() {
     if [ "$rc_agente" -eq 0 ]; then
       consenso_log_append "$run_dir" "- $id: participó"
     else
-      consenso_log_append "$run_dir" "- $id: NO participó (salida inválida o fallo del CLI)"
+      consenso_log_append "$run_dir" "- $id: FALLÓ — revisión fallida, no \"sin hallazgos\"; no hay $id.json (causa en $id.json.err)"
     fi
     i=$((i + 1))
   done
@@ -663,9 +698,12 @@ cmd_debate() {
 
 $points"
 
+  # cwd = repo del run (<repo>/.consenso/<ts>), igual que en round0.
+  run_dir="$(cd "$run_dir" && pwd)"
+  local repo="${run_dir%/.consenso/*}"
   local agent
   for agent in $elenco; do
-    if run_agent "$agent" "$prompt" "$run_dir/debate-$round-$agent.md"; then
+    if ( consenso_fijar_rutas "$agent" && cd "$repo" && run_agent "$agent" "$prompt" "$run_dir/debate-$round-$agent.md" ); then
       consenso_log_append "$run_dir" "- debate ronda $round: $agent respondió"
     else
       consenso_log_append "$run_dir" "- debate ronda $round: $agent NO respondió (fallo del CLI o timeout)"
@@ -734,28 +772,10 @@ $(cat "$problem_file")"
   # El agente corre desde un directorio vacío: si se lanzara en el repo, un
   # CLI agéntico podría leer el árbol de trabajo y ver la propuesta que
   # precisamente debe ignorar.
-  # Tras el cd, las rutas relativas del registro o del binario (p.ej.
-  # CONSENSO_CODEX_BIN=./bin/codex) dejarían de resolverse: se fijan antes.
-  # Un nombre sin '/' sigue resolviéndose por PATH.
-  local bin_var bin registro
-  bin_var="CONSENSO_$(printf '%s' "$agent" | tr 'a-z' 'A-Z')_BIN"
-  bin="$(consenso_bin_de "$agent")" || return $?
-  case "$bin" in
-    /*) : ;;
-    */*) bin="$PWD/$bin" ;;
-  esac
-  registro="$CONSENSO_REGISTRY"
-  case "$registro" in
-    /*) : ;;
-    *) registro="$PWD/$registro" ;;
-  esac
-
   local ciego rc
   ciego="$(mktemp -d)"
   (
-    CONSENSO_REGISTRY="$registro"
-    printf -v "$bin_var" '%s' "$bin"
-    cd "$ciego" && run_agent "$agent" "$prompt" "$out"
+    consenso_fijar_rutas "$agent" && cd "$ciego" && run_agent "$agent" "$prompt" "$out"
   )
   rc=$?
   rmdir "$ciego" 2>/dev/null || rm -rf "$ciego"

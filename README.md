@@ -50,7 +50,7 @@ Pro (High) puede tardar >7 min por revisión. Los overrides legacy
 
 `qwen` y `opencode` dependen de que su propio proveedor esté con crédito o
 plan de pago activo en esa máquina (no basta con tener el binario instalado):
-sin eso, `doctor` los marca `FALLO` y `round0` los deja como "NO participó"
+sin eso, `doctor` los marca `FALLO` y `round0` los marca como "FALLÓ" (sin `<id>.json`)
 — degradación esperada, no un fallo de consenso.sh.
 
 **Nota de seguridad:** `qwen` corre con `--approval-mode yolo` y `agy` con

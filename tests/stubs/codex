@@ -25,6 +25,12 @@
 #                          siendo STUB_CODEX_RC; simula salida vacía).
 #   STUB_CODEX_SLEEP    -> segundos a dormir antes de responder (default 0).
 #   STUB_CODEX_RC       -> código de salida (default 0).
+#   STUB_CODEX_PWD_FILE -> si está seteada, escribe ahí el directorio de
+#                          trabajo con el que se lanzó el CLI.
+#   STUB_CODEX_ARGS_FILE -> si está seteada, escribe ahí el último argumento
+#                          (el prompt) tal cual llegó.
+[ -n "${STUB_CODEX_PWD_FILE:-}" ] && pwd > "$STUB_CODEX_PWD_FILE"
+[ -n "${STUB_CODEX_ARGS_FILE:-}" ] && printf '%s' "${!#}" > "$STUB_CODEX_ARGS_FILE"
 sleep "${STUB_CODEX_SLEEP:-0}"
 
 out_file=""

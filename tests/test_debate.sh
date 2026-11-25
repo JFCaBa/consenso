@@ -30,6 +30,17 @@ assert_eq "$rd2" "$run_dir" "debate --round 2 imprime el run-dir"
 assert_contains "$(cat "$run_dir/debate-2-codex.md")" "Mantengo X" "guarda respuesta de codex en ronda 2"
 assert_contains "$(cat "$run_dir/debate-2-agy.md")" "Cedo" "guarda respuesta de agy en ronda 2"
 
+# El debate corre en el repo del run (<repo>/.consenso/<ts>), no en el cwd.
+( cd / && STUB_CODEX_PWD_FILE="$tmp/pwd.txt" STUB_AGY_OUT='ok' \
+    bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir" --round 9 >/dev/null )
+assert_eq "$(cat "$tmp/pwd.txt")" "$(cd "$tmp" && pwd)" "debate lanza el CLI en el repo del run"
+
+mkdir -p "$tmp/llamante/bin"
+cp "$HERE/stubs/codex" "$tmp/llamante/bin/codex"
+( cd "$tmp/llamante" && CONSENSO_CODEX_BIN=./bin/codex STUB_CODEX_OUT='rel ok' STUB_AGY_OUT='ok' \
+    bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir" --round 8 >/dev/null )
+assert_contains "$(cat "$run_dir/debate-8-codex.md")" "rel ok" "debate: binario relativo se resuelve desde el llamante"
+
 # Un agente falla (rc!=0): el log debe reflejar NO respondió para ese agente,
 # mientras el otro sigue mostrando "respondió".
 out3="$(STUB_CODEX_RC=1 STUB_CODEX_OUT='boom' STUB_AGY_OUT='Cedo, X es correcto.' \
