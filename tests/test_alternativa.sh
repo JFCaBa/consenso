@@ -34,8 +34,7 @@ fake="$tmp/fake-codex"
 cat > "$fake" <<'EOF'
 #!/usr/bin/env bash
 echo "CWD=$(pwd)"
-for a in "$@"; do last="$a"; done
-printf '%s' "$last"
+cat  # el prompt llega por stdin
 EOF
 chmod +x "$fake"
 export CONSENSO_TIMESTAMP="2026-11-18-1202"

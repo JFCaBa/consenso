@@ -35,6 +35,14 @@ assert_contains "$(cat "$run_dir/debate-2-agy.md")" "Cedo" "guarda respuesta de 
     bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir" --round 9 >/dev/null )
 assert_eq "$(cat "$tmp/pwd.txt")" "$(cd "$tmp" && pwd)" "debate lanza el CLI en el repo del run"
 
+# El debate también entrega el prompt por stdin.
+STUB_CODEX_STDIN_FILE="$tmp/stdin-deb.txt" STUB_AGY_OUT='ok' \
+  bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir" --round 7 >/dev/null
+assert_contains "$(cat "$tmp/stdin-deb.txt")" "Codex dice X" "debate: los puntos llegan por stdin"
+STUB_CODEX_STDIN_KIND_FILE="$tmp/kind-deb.txt" STUB_AGY_OUT='ok' \
+  bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$run_dir" --round 6 >/dev/null
+assert_eq "$(cat "$tmp/kind-deb.txt")" "fichero" "debate: stdin redirigido desde fichero"
+
 mkdir -p "$tmp/llamante/bin"
 cp "$HERE/stubs/codex" "$tmp/llamante/bin/codex"
 ( cd "$tmp/llamante" && CONSENSO_CODEX_BIN=./bin/codex STUB_CODEX_OUT='rel ok' STUB_AGY_OUT='ok' \

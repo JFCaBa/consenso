@@ -61,4 +61,11 @@ assert_eq "$(CONSENSO_REGISTRY="$tmp/sin-timeouts.json" consenso_timeout_de code
 assert_eq "$(CONSENSO_REGISTRY="$tmp/sin-timeouts.json" CONSENSO_TIMEOUT=7 consenso_timeout_de codex)" "7" "override global de timeout"
 
 rm -rf "$tmp"
+# Prompt por stdin (E2BIG): codex no lleva el prompt en argv. agy NO: con -p
+# ignora stdin (promptLength en su log = solo el -p) y sale a buscar el
+# contenido con herramientas, lo que en pruebas parece que funciona.
+assert_eq "$(jq -r '.agentes[] | select(.id=="codex") | .prompt_via' "$CONSENSO_REGISTRY")" "stdin" "codex recibe el prompt por stdin"
+assert_eq "$(jq -r '.agentes[] | select(.id=="agy") | .prompt_via // "argv"' "$CONSENSO_REGISTRY")" "argv" "agy recibe el prompt por argv"
+assert_eq "$(jq '[.agentes[] | select(.prompt_via == "stdin") | (.prosa_argv + .json.argv)[] | select(contains("{PROMPT}"))] | length' "$CONSENSO_REGISTRY")" "0" "con stdin, ningún argv lleva {PROMPT}"
+
 echo "OK test_registry"

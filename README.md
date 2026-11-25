@@ -37,6 +37,13 @@ están en `agents/registry.json`: `codex`, `agy` (Antigravity), `qwen` y
 `opencode`. Consenso detecta los instalados en cada ejecución y corre con los
 que haya (con 1 solo agente lo marca como "consenso debilitado"; con 0, error).
 
+`codex` recibe el prompt por stdin (`"prompt_via": "stdin"` en el registro),
+así que un plan o diff grande no choca con el límite de argv (E2BIG). `agy`
+no puede: con `-p` ignora stdin (y, si se le dice que mire ahí, sale a buscar
+el contenido con herramientas, lo que engaña en pruebas). `qwen` y `opencode`
+siguen por argv hasta validarlos con stdin. Para un registro propio,
+`{PROMPT}` en argv sigue soportado.
+
 `bash consenso.sh doctor` comprueba de verdad cada agente del registro
 (instalado + llamada de prueba) y te dice cuáles participarían.
 

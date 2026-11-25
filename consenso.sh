@@ -98,6 +98,22 @@ run_with_timeout() {
   return "$rc"
 }
 
+consenso_run_cli_stdin() {
+  # $1 = segundos de timeout, $2 = prompt, $3 = stdout, $4 = stderr, resto =
+  # comando. Entrega el prompt por stdin desde un fichero, no por un pipe: así
+  # un CLI que no lee stdin (o lo lee a medias) no provoca SIGPIPE con un
+  # prompt grande. El fichero va junto a
+  # la salida (en el run_dir, ignorado por git) y no en /tmp: si se interrumpe
+  # el run, el sobrante no se acumula fuera de la vista.
+  local t="$1" prompt="$2" out="$3" err="$4" pf="$3.prompt" rc
+  shift 4
+  printf '%s' "$prompt" > "$pf" || return 2
+  run_with_timeout "$t" "$@" < "$pf" >"$out" 2>"$err"
+  rc=$?
+  rm -f "$pf"
+  return "$rc"
+}
+
 run_agent() {
   # $1 = id del registro, $2 = prompt, $3 = fichero de salida. Uso: respuestas
   # en prosa (debate). Para hallazgos en JSON usa run_agent_json.
@@ -115,7 +131,7 @@ run_agent() {
   via="$(consenso_agente_json "$id" | jq -r '.prompt_via // "argv"')"
   consenso_argv "$id" prosa "$prompt" "" "" "$model" || return $?
   if [ "$via" = "stdin" ]; then
-    printf '%s' "$prompt" | run_with_timeout "$timeout" "$bin" "${ARGV[@]}" >"$out" 2>"$out.err"
+    consenso_run_cli_stdin "$timeout" "$prompt" "$out" "$out.err" "$bin" "${ARGV[@]}"
   else
     # stdin explícitamente cerrado: codex >=0.14x (y en general cualquier CLI
     # con semántica propia de stdin) lee el stdin heredado y lo anexa al
@@ -179,21 +195,22 @@ consenso_extraer_hallazgos() {
 
 run_agent_json() {
   # $1 = id del registro, $2 = prompt, $3 = out_file. Escribe el array JSON de
-  # hallazgos en $out (o [] si el agente no participó). 0 si hay array válido.
+  # hallazgos en $out. 0 si hay array válido.
   # via=schema: JSON Schema nativo del CLI (codex --output-schema, agy
   # --json-schema); via=prompt: instrucciones de _formato.md + normalización.
   local id="$1" prompt="$2" out="$3"
-  local bin model timeout via salida raw rc
+  local bin model timeout json_via prompt_via salida raw rc
   bin="$(consenso_bin_de "$id")" || return 2
   model="$(consenso_model_de "$id")"
   timeout="$(consenso_timeout_de "$id")"
-  via="$(consenso_agente_json "$id" | jq -r '.json.via')"
+  json_via="$(consenso_agente_json "$id" | jq -r '.json.via')"
+  prompt_via="$(consenso_agente_json "$id" | jq -r '.prompt_via // "argv"')"
   salida="$(consenso_agente_json "$id" | jq -r '.json.salida')"
   raw="$out.raw"
   # Limpiar restos de ejecuciones/reintentos anteriores: un raw viejo podría
   # extraerse como éxito falso si el CLI falla sin escribir nada.
   rm -f "$raw" "$out.stdout"
-  if [ "$via" = "prompt" ]; then
+  if [ "$json_via" = "prompt" ]; then
     prompt="$prompt
 
 $(cat "$CONSENSO_HOME/prompts/_formato.md")"
@@ -204,8 +221,8 @@ $(cat "$CONSENSO_HOME/prompts/_formato.md")"
   # con prompt_via=stdin, /dev/null si no.
   local stdout_dest="$out.stdout"
   [ "$salida" = "stdout" ] && stdout_dest="$raw"
-  if [ "$(consenso_agente_json "$id" | jq -r '.prompt_via // "argv"')" = "stdin" ]; then
-    printf '%s' "$prompt" | run_with_timeout "$timeout" "$bin" "${ARGV[@]}" >"$stdout_dest" 2>"$out.err"
+  if [ "$prompt_via" = "stdin" ]; then
+    consenso_run_cli_stdin "$timeout" "$prompt" "$stdout_dest" "$out.err" "$bin" "${ARGV[@]}"
   else
     run_with_timeout "$timeout" "$bin" "${ARGV[@]}" < /dev/null >"$stdout_dest" 2>"$out.err"
   fi

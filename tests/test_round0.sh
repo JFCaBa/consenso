@@ -83,9 +83,29 @@ assert_eq "$(cat "$tmp/repo/.consenso/.gitignore")" "*" "crea .consenso/.gitigno
 
 # Un prompt con & llega intacto (bash 5.2 activa patsub_replacement).
 printf '+a && b & c\n' > "$tmp/amp.txt"
-CONSENSO_AGENTS=codex STUB_CODEX_ARGS_FILE="$tmp/args.txt" \
+CONSENSO_AGENTS=codex STUB_CODEX_STDIN_FILE="$tmp/stdin.txt" \
   bash "$SCRIPT" round0 --diff "$tmp/amp.txt" --workdir "$tmp/repo" >/dev/null
-assert_contains "$(cat "$tmp/args.txt")" "+a && b & c" "los & del prompt llegan intactos"
+assert_contains "$(cat "$tmp/stdin.txt")" "+a && b & c" "los & del prompt llegan intactos"
+
+# Prompt mayor que ARG_MAX (1 MB macOS; 128 KB por argumento en Linux): por
+# stdin llega entero, hasta el final.
+{ printf '+'; head -c 1200000 /dev/zero | tr '\0' 'x'; printf '\n+FIN-DEL-DIFF-GRANDE\n'; } > "$tmp/grande.txt"
+out_g="$(CONSENSO_AGENTS=codex STUB_CODEX_STDIN_FILE="$tmp/stdin-g.txt" \
+  bash "$SCRIPT" round0 --diff "$tmp/grande.txt" --workdir "$tmp/repo")"
+assert_contains "$(cat "$(printf '%s\n' "$out_g" | tail -1)/codex.json")" "division por cero" "prompt grande: codex revisa"
+assert_contains "$(tail -c 100 "$tmp/stdin-g.txt")" "FIN-DEL-DIFF-GRANDE" "prompt grande: llega entero"
+
+# stdin viene de un fichero, no de un pipe (sin SIGPIPE si el CLI no lo lee).
+CONSENSO_AGENTS=codex STUB_CODEX_STDIN_KIND_FILE="$tmp/kind.txt" \
+  bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp/repo" >/dev/null
+assert_eq "$(cat "$tmp/kind.txt")" "fichero" "round0: stdin redirigido desde fichero"
+
+# Un CLI que no lee stdin no rompe la revisión (el stub de codex solo lo lee
+# con STUB_CODEX_STDIN_FILE).
+out_p="$(CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --diff "$tmp/grande.txt" --workdir "$tmp/repo")"
+rd_p="$(printf '%s\n' "$out_p" | tail -1)"
+assert_contains "$(cat "$rd_p/codex.json")" "division por cero" "prompt grande sin leer stdin: codex revisa igual"
+assert_contains "$(cat "$rd_p/log.md")" "codex: participó" "prompt grande sin leer stdin: codex participó"
 
 # round0 con --plan: revisa el plan como prosa y lo marca en el log.
 printf '# Plan\n1. Anadir endpoint\n2. Migrar tabla usuarios\n' > "$tmp/plan.md"

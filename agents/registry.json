@@ -7,10 +7,11 @@
       "rol": "prompts/codex.md",
       "prioridad": 1,
       "timeout": 300,
-      "prosa_argv": ["exec", "--skip-git-repo-check", "{PROMPT}"],
+      "prompt_via": "stdin",
+      "prosa_argv": ["exec", "--skip-git-repo-check"],
       "json": {
         "via": "schema",
-        "argv": ["exec", "--skip-git-repo-check", "--output-schema", "{SCHEMA}", "-o", "{RAW}", "{PROMPT}"],
+        "argv": ["exec", "--skip-git-repo-check", "--output-schema", "{SCHEMA}", "-o", "{RAW}"],
         "salida": "fichero",
         "extract": ".hallazgos"
       }
