@@ -107,6 +107,18 @@ rd_p="$(printf '%s\n' "$out_p" | tail -1)"
 assert_contains "$(cat "$rd_p/codex.json")" "division por cero" "prompt grande sin leer stdin: codex revisa igual"
 assert_contains "$(cat "$rd_p/log.md")" "codex: participó" "prompt grande sin leer stdin: codex participó"
 
+# Triaje: el log resume cuántos hallazgos van fuera de alcance o son hipotéticos.
+H='"severidad":"menor","ubicacion":"x","problema":"p","propuesta":"q"'
+out_t="$(CONSENSO_AGENTS=codex STUB_CODEX_OUT="[{$H,\"fuera_de_alcance\":true,\"hipotetica\":false},{$H,\"fuera_de_alcance\":false,\"hipotetica\":true},{$H,\"fuera_de_alcance\":false,\"hipotetica\":false}]" \
+  bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp/repo")"
+assert_contains "$(cat "$(printf '%s\n' "$out_t" | tail -1)/log.md")" "codex: participó (3 hallazgos; 1 fuera de alcance, 1 hipotéticos)" "recuento de triaje en el log"
+out_v="$(CONSENSO_AGENTS=codex STUB_CODEX_OUT='[]' bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp/repo")"
+assert_contains "$(cat "$(printf '%s\n' "$out_v" | tail -1)/log.md")" "codex: participó (0 hallazgos; 0 fuera de alcance, 0 hipotéticos)" "recuento con []"
+# via=prompt: campo ausente cuenta como false; "true" como string, como true.
+out_o="$(CONSENSO_AGENTS=opencode STUB_OPENCODE_OUT="[{$H},{$H,\"fuera_de_alcance\":\"true\"}]" \
+  bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp/repo")"
+assert_contains "$(cat "$(printf '%s\n' "$out_o" | tail -1)/log.md")" "opencode: participó (2 hallazgos; 1 fuera de alcance, 0 hipotéticos)" "recuento tolerante en via=prompt"
+
 # round0 con --plan: revisa el plan como prosa y lo marca en el log.
 printf '# Plan\n1. Anadir endpoint\n2. Migrar tabla usuarios\n' > "$tmp/plan.md"
 out3="$(bash "$SCRIPT" round0 --plan "$tmp/plan.md" --workdir "$tmp")"

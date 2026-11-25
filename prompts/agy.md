@@ -7,7 +7,7 @@ Puedes señalar cualquier otra cosa que veas, pero prioriza tu lente.
 **Calibra por realismo.** Un riesgo pesa según su probabilidad real en este
 sistema, no según si es concebible. Si depende de una entrada o un escenario
 hipotético (algo que la fuente real no produce o que el contrato no admite),
-márcalo como mucho `menor` y dilo en `problema` ("entrada hipotética: …").
+márcalo como mucho `menor` y pon `hipotetica: true`.
 
 ## Formato de salida (obligatorio)
 
@@ -18,6 +18,12 @@ elemento es un hallazgo con estas claves exactas:
 - `ubicacion`: `ruta:linea` o descripción del punto
 - `problema`: qué está mal o qué riesgo hay
 - `propuesta`: el cambio concreto sugerido
+- `fuera_de_alcance`: `true` si no es sobre el cambio ni sobre algo que el
+  cambio rompa o empeore; `false` si lo es
+- `hipotetica`: `true` si depende de una entrada o un escenario que la fuente
+  real no produce o el contrato no admite; `false` si no
+
+Los dos booleanos van en TODOS los hallazgos, con `false` cuando no apliquen.
 
 Si no encuentras nada, responde `[]`.
 

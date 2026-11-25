@@ -18,13 +18,25 @@ assert_contains "$(cat "$P/claude.md")" "legibilidad" "claude declara su lente"
 
 for f in codex agy qwen opencode claude; do
   assert_contains "$(cat "$P/$f.md")" "Calibra por realismo" "prompts/$f.md calibra por realismo"
-  assert_contains "$(cat "$P/$f.md")" "entrada hipotética" "prompts/$f.md marca las entradas hipotéticas"
+  assert_contains "$(cat "$P/$f.md")" "hipotetica" "prompts/$f.md marca las entradas hipotéticas con el campo"
+  case "$(cat "$P/$f.md")" in
+    *"(\"entrada hipotética: …\")"*) fail "prompts/$f.md ya no debe pedir el prefijo de texto" ;;
+  esac
 done
 assert_contains "$(cat "$P/alternativa.md")" "No ves esa" "alternativa diseña sin ver la propuesta"
 assert_contains "$(cat "$P/alternativa.md")" "NO mires el repositorio" "alternativa no explora el repo"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "consenso.sh\" alternativa" "la skill dispara el rediseño a ciegas"
-assert_contains "$(cat "$P/claude.md")" "fuera de alcance:" "claude también marca lo ajeno al cambio"
+assert_contains "$(cat "$P/claude.md")" "fuera_de_alcance: true" "claude también marca lo ajeno al cambio"
+# Contrato de triaje: dos booleanos obligatorios en el esquema y en el formato.
+assert_exit 0 jq -e '.properties.hallazgos.items | (.required | index("fuera_de_alcance") and index("hipotetica")) and .properties.fuera_de_alcance.type=="boolean" and .properties.hipotetica.type=="boolean"' "$P/hallazgos.schema.json"
+for f in _formato codex agy qwen opencode claude; do
+  assert_contains "$(cat "$P/$f.md")" "\`fuera_de_alcance\`" "prompts/$f.md declara fuera_de_alcance"
+  assert_contains "$(cat "$P/$f.md")" "\`false\`" "prompts/$f.md exige false explícito"
+done
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "**Fuera de alcance**" "la síntesis separa lo ajeno al cambio"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "no se debate" "lo ajeno al cambio no entra en el debate"
+
+assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "fuera_de_alcance: true" "la skill filtra por el campo"
+assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "hipotetica: true" "la regla del bucle usa el campo"
 
 echo "OK test_prompts"

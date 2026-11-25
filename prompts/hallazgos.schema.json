@@ -12,9 +12,11 @@
           },
           "ubicacion": { "type": "string" },
           "problema": { "type": "string" },
-          "propuesta": { "type": "string" }
+          "propuesta": { "type": "string" },
+          "fuera_de_alcance": { "type": "boolean" },
+          "hipotetica": { "type": "boolean" }
         },
-        "required": ["severidad", "ubicacion", "problema", "propuesta"],
+        "required": ["severidad", "ubicacion", "problema", "propuesta", "fuera_de_alcance", "hipotetica"],
         "additionalProperties": false
       }
     }

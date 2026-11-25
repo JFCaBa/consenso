@@ -8,7 +8,7 @@ pero prioriza tu lente.
 entrada llegue de verdad (del proveedor, del usuario, de la propia app), no
 según si es concebible. Si la entrada es hipotética, como un valor que la fuente
 real no envía nunca o un tipo que el contrato no admite, márcalo como mucho
-`menor` y dilo en `problema` ("entrada hipotética: …"). Reserva `importante` y
+`menor` y pon `hipotetica: true`. Reserva `importante` y
 `bloqueante` para fallos con entradas que ocurren o con impacto grave
 (seguridad, pérdida de datos). Si una zona acumula guardas para casos raros,
 desproporcionadas frente al arreglo de fondo, el problema suele ser el enfoque,
@@ -23,5 +23,11 @@ elemento es un hallazgo con estas claves exactas:
 - `ubicacion`: `ruta:linea` o descripción del punto
 - `problema`: qué está mal o qué riesgo hay
 - `propuesta`: el cambio concreto sugerido
+- `fuera_de_alcance`: `true` si no es sobre el cambio ni sobre algo que el
+  cambio rompa o empeore; `false` si lo es
+- `hipotetica`: `true` si depende de una entrada o un escenario que la fuente
+  real no produce o el contrato no admite; `false` si no
+
+Los dos booleanos van en TODOS los hallazgos, con `false` cuando no apliquen.
 
 Si no encuentras nada, responde `[]`.

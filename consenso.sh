@@ -29,8 +29,8 @@ consenso_build_prompt() {
   echo "lo que el cambio rompa o empeore. Si ves un problema en código o diseño"
   echo "que ya existía y que el cambio no toca ni agrava, o una ampliación que"
   echo "no sirve al objetivo, puedes señalarlo, pero márcalo como mucho \`menor\`"
-  echo "y empieza 'problema' con \"fuera de alcance: …\". No propongas ampliar"
-  echo "el cambio para arreglarlo."
+  echo "y pon fuera_de_alcance: true. No propongas ampliar el cambio para"
+  echo "arreglarlo."
   echo ""
   if [ "$modo" = "plan" ]; then
     echo "NOTA: lo que sigue es un PLAN DE IMPLEMENTACIÓN en prosa, no un diff."
@@ -271,6 +271,14 @@ consenso_agent_with_retry() {
   # hallazgos" y un fallo se leería como un OK.
   rm -f "$out"
   return 1
+}
+
+consenso_resumen_triaje() {
+  # $1 = <id>.json. Imprime "N hallazgos; F fuera de alcance, H hipotéticos".
+  # Agentes via=prompt no validan campos: ausente = false, y "true" como
+  # string cuenta como true (los modelos sin esquema a veces lo entrecomillan).
+  jq -r 'def si(c): [.[] | select(c == true or c == "true")] | length;
+    "\(length) hallazgos; \(si(.fuera_de_alcance)) fuera de alcance, \(si(.hipotetica)) hipotéticos"' "$1"
 }
 
 consenso_run_dir() {
@@ -626,7 +634,7 @@ cmd_round0() {
     wait "${pids[$i]}"
     rc_agente=$?
     if [ "$rc_agente" -eq 0 ]; then
-      consenso_log_append "$run_dir" "- $id: participó"
+      consenso_log_append "$run_dir" "- $id: participó ($(consenso_resumen_triaje "$run_dir/$id.json"))"
     else
       consenso_log_append "$run_dir" "- $id: FALLÓ — revisión fallida, no \"sin hallazgos\"; no hay $id.json (causa en $id.json.err)"
     fi

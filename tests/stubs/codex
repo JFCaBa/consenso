@@ -69,7 +69,7 @@ if [ -n "${STUB_CODEX_COUNTER:-}" ]; then
 fi
 
 default_hallazgos() {
-  printf '%s' '[{"severidad":"importante","ubicacion":"foo.py:2","problema":"division por cero","propuesta":"validar divisor"}]'
+  printf '%s' '[{"severidad":"importante","ubicacion":"foo.py:2","problema":"division por cero","propuesta":"validar divisor","fuera_de_alcance":false,"hipotetica":false}]'
 }
 default_prose() {
   printf '%s' 'codex prosa de prueba: division por cero'

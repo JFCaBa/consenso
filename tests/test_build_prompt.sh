@@ -21,7 +21,7 @@ assert_contains "$out_plan" "para el objetivo del plan" "modo plan: pasos que fa
 # Alcance: en ambos modos, se revisa solo el cambio y se marca lo ajeno.
 for o in "$out" "$out_plan"; do
   assert_contains "$o" "ALCANCE" "lleva la regla de alcance"
-  assert_contains "$o" "fuera de alcance:" "marca lo ajeno al cambio con su prefijo"
+  assert_contains "$o" "fuera_de_alcance: true" "marca lo ajeno al cambio con el campo"
 done
 
 # Modo desconocido -> exit 64

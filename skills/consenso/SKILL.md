@@ -57,7 +57,8 @@ dudosos, alternativas más simples) en lugar de código.
 3. **Síntesis.** Junta los tres conjuntos de hallazgos.
    Primero filtra lo **Fuera de alcance**: hallazgos que no son sobre el
    cambio ni sobre algo que el cambio rompa o empeore (los agentes lo marcan
-   con "fuera de alcance:", pero juzga tú aunque no lo marquen). Eso
+   con `fuera_de_alcance: true` —el log de round0 da el recuento—, pero juzga
+   tú aunque no lo marquen). Eso
    no se debate, no entra en el plan ni en el diff, aunque lo vean varios agentes:
    va al informe con su evidencia y decide el usuario. No amplíes el cambio
    por tu cuenta para arreglarlo. El resto clasifícalo:
@@ -80,8 +81,8 @@ dudosos, alternativas más simples) en lugar de código.
    **tercer ciclo** si los hallazgos nuevos que siguen apareciendo son sobre
    todo casos límite en la misma zona y con entradas que los datos reales no
    producen. Señales: cada parche abre otro caso, el código de esa zona crece
-   mucho más que el arreglo de fondo, o los hallazgos llevan "entrada
-   hipotética". En ese caso **no apliques otro parche**:
+   mucho más que el arreglo de fondo, o los hallazgos llevan
+   `hipotetica: true`. En ese caso **no apliques otro parche**:
    1. Escribe un enunciado del problema **sin tu solución**: objetivo,
       restricciones, datos reales medidos (p.ej. "en la medición hubo un solo
       429") e interfaces existentes que deba respetar. No incluyas tu diseño,
