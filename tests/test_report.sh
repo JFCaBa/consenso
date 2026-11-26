@@ -26,12 +26,12 @@ out="$(report)"
 assert_exit 0 cmp -s <(printf '%s\n' "$out") "$g/v1/informe.md"
 assert_contains "$out" "## Informe (gate 1, v1)" "encabezado con gate y versión"
 orden="$(printf '%s\n' "$out" | grep -n '^### ' | cut -d: -f2 | tr '\n' '|')"
-assert_eq "$orden" "### Acordado|### Resuelto por debate|### Sin resolver|### Fuera de alcance|" "secciones en orden"
+assert_eq "$orden" "### Acordado|### Resuelto|### Sin resolver|### Fuera de alcance|" "secciones en orden"
 seccion() { printf '%s\n' "$out" | awk -v s="### $1" '$0==s{on=1;next} /^#/{on=0} on'; }
 assert_contains "$(seccion Acordado)" "O1" "O1 en Acordado"
 assert_contains "$(seccion Acordado)" "codex y Claude" "la nota acompaña al hallazgo"
-assert_contains "$(seccion 'Resuelto por debate')" "O2" "O2 en Resuelto"
-assert_contains "$(seccion 'Resuelto por debate')" "O3" "O3 (rechazada) en Resuelto"
+assert_contains "$(seccion 'Resuelto')" "O2" "O2 en Resuelto"
+assert_contains "$(seccion 'Resuelto')" "O3" "O3 (rechazada) en Resuelto"
 assert_contains "$(seccion 'Sin resolver')" "O4" "O4 en Sin resolver"
 assert_contains "$(seccion 'Fuera de alcance')" "O5" "O5 en Fuera de alcance"
 assert_contains "$out" "| O4 | abierta |" "fila de tabla de O4"
@@ -49,7 +49,7 @@ case "$(cat "$g/v1/log.md")" in *"### Acordado"*) fail "log.md no lleva el infor
 obj 1 "$(o O1 solo-acordada acordada)"
 out="$(report)"
 assert_contains "$(seccion 'Sin resolver')" "- (ninguno)" "Sin resolver vacía"
-assert_contains "$(seccion 'Resuelto por debate')" "- (ninguno)" "Resuelto vacía"
+assert_contains "$(seccion 'Resuelto')" "- (ninguno)" "Resuelto vacía"
 case "$out" in *"### Fuera de alcance"*) fail "Fuera de alcance vacía se omite" ;; esac
 
 # --- Tabla a salvo de | y saltos de línea ---

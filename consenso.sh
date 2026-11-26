@@ -1168,7 +1168,7 @@ consenso_informe() {
       | "### \(t)\n" + (if ($xs | length) == 0 then "- (ninguno)" else ($xs | map(item) | join("\n")) end) + "\n";
     "## Informe (gate \($g), v\($v))\n",
     seccion("Acordado"; ["acordada"]),
-    seccion("Resuelto por debate"; ["resuelta", "rechazada"]),
+    seccion("Resuelto"; ["resuelta", "rechazada"]),
     seccion("Sin resolver"; ["abierta"]),
     (if any(.objeciones[]; .estado == "fuera_de_alcance") then seccion("Fuera de alcance"; ["fuera_de_alcance"]) else empty end),
     "#### Estado por objeción\n",

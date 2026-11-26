@@ -44,7 +44,7 @@ sucesivas sean un concepto del plugin, y que el informe salga siempre igual.
   `fuera_de_alcance`; `nota` string (puede ser vacía). Lo escribe Claude tras
   la síntesis; ids nuevos continúan la numeración, nunca se renumera.
 - `report` mapea estados a secciones: `acordada` → Acordado; `resuelta` y
-  `rechazada` → Resuelto por debate; `abierta` → Sin resolver;
+  `rechazada` → Resuelto (por debate o por una versión nueva); `abierta` → Sin resolver;
   `fuera_de_alcance` → Fuera de alcance. Añade una tabla id | estado |
   hallazgo. Lo escribe en `v<k>/informe.md` (sobrescribe: idempotente), lo
   imprime y deja una línea en `log.md`. Rechaza un `objeciones.json` cuya
