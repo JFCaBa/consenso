@@ -142,6 +142,18 @@ p.ej. el nombre del plan; gate 1 = plan, gate 2 = diff). El run queda en
    y usa su salida como informe: no lo redactes a mano. Si `report` rechaza el
    fichero, corrígelo y relánzalo (es idempotente).
 
+**Versión nueva** (el plan o el diff cambió tras la revisión): no lances otra
+ronda 0. Ejecuta
+`bash "${CLAUDE_PLUGIN_ROOT}/consenso.sh" revise --task <id> --gate <n> --workdir <repo>`
+(con `--diff`/`--plan` si hace falta). Exige que `objeciones.json` sea de la
+última versión. Crea `v<k+1>/`: cada agente recibe la versión completa, lo
+que cambió (`cambios`) y las objeciones `abierta` y `acordada` (¿se aplicó lo
+acordado?), y deja `<id>.json` (hallazgos NUEVOS) y `<id>.seguimiento.json`
+(`resuelta` | `sigue_abierta` por objeción). Síntesis: con su seguimiento y tu
+juicio, cada pendiente pasa a `resuelta` o sigue `abierta` (si discrepáis,
+debate sobre `v<k+1>`); los hallazgos nuevos reciben ids nuevos; pon
+`version` a k+1 y ejecuta `report`.
+
 Sin `--task`, el informe se escribe a mano como abajo.
 
 ## Informe (siempre, 3 secciones + 1 opcional)

@@ -1,0 +1,78 @@
+{
+  "type": "object",
+  "properties": {
+    "hallazgos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "severidad": {
+            "type": "string",
+            "enum": [
+              "bloqueante",
+              "importante",
+              "menor",
+              "nit"
+            ]
+          },
+          "ubicacion": {
+            "type": "string"
+          },
+          "problema": {
+            "type": "string"
+          },
+          "propuesta": {
+            "type": "string"
+          },
+          "fuera_de_alcance": {
+            "type": "boolean"
+          },
+          "hipotetica": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "severidad",
+          "ubicacion",
+          "problema",
+          "propuesta",
+          "fuera_de_alcance",
+          "hipotetica"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "seguimiento": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "objecion": {
+            "type": "string"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "resuelta",
+              "sigue_abierta"
+            ]
+          },
+          "argumento": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "objecion",
+          "estado",
+          "argumento"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "hallazgos",
+    "seguimiento"
+  ],
+  "additionalProperties": false
+}

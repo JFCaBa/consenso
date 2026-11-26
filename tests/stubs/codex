@@ -53,6 +53,10 @@ done
 # Clave envolvente: la que exige el esquema recibido (hallazgos o veredictos).
 clave="hallazgos"
 [ -n "$schema" ] && clave="$(jq -r '.required[0]' "$schema")"
+sch="$schema"
+# Esquema de varias claves (revise): {"hallazgos": OUT, "seguimiento": $STUB_CODEX_SEGUIMIENTO o []}.
+multi=0
+[ -n "${sch:-}" ] && [ "$(jq '.required | length' "$sch")" -gt 1 ] && multi=1
 
 if [ -n "${STUB_CODEX_COUNTER:-}" ]; then
   count="0"
@@ -87,7 +91,11 @@ default_prose() {
 if [ -n "$out_file" ]; then
   if [ -z "${STUB_CODEX_EMPTY:-}" ]; then
     body="${STUB_CODEX_OUT:-$(default_hallazgos)}"
-    printf '{"%s":%s}' "$clave" "$body" > "$out_file"
+    if [ "$multi" = 1 ]; then
+      printf '{"hallazgos":%s,"seguimiento":%s}' "$body" "${STUB_CODEX_SEGUIMIENTO:-[]}" > "$out_file"
+    else
+      printf '{"%s":%s}' "$clave" "$body" > "$out_file"
+    fi
   fi
 else
   printf '%s' "${STUB_CODEX_OUT:-$(default_prose)}"

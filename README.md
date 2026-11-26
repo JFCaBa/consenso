@@ -106,7 +106,10 @@ Para una tarea con varias etapas, `round0 --task <id> --gate <n>` deja el run
 en `.consenso/<id>/g<n>/v1/`. Tras la síntesis, Claude escribe
 `g<n>/objeciones.json` (ids `O1`, `O2`… estables) y
 `bash consenso.sh report --task <id> --gate <n>` genera el informe de 4
-secciones con una tabla de estado en `v<k>/informe.md`.
+secciones con una tabla de estado en `v<k>/informe.md`. Para la versión
+siguiente, `bash consenso.sh revise --task <id> --gate <n>` crea `v<k+1>` y
+envía a cada agente la versión completa, los cambios y las objeciones
+pendientes; cada uno responde hallazgos nuevos y un seguimiento por objeción.
 
 `p.json` es un array de `{"id","punto","posturas"}`. Cada agente escribe
 `debate-<N>-<id>.json`; si uno falla, relanzar la misma ronda corre solo a los

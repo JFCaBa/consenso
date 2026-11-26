@@ -42,6 +42,7 @@ assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "debate-N-<id>.json
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" '"posturas"' "la skill escribe los puntos en JSON"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "objeciones.json" "la skill registra las objeciones de una tarea"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" 'consenso.sh" report' "la skill genera el informe con report"
+assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" 'consenso.sh" revise' "la skill revisa versiones nuevas con revise"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "**Revisor único**" "la skill sintetiza con un solo revisor"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "solo de Claude" "la skill cubre el revisor único que falló"
 for f in "$HERE/../skills/consenso/SKILL.md" "$HERE/../README.md"; do

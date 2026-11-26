@@ -43,9 +43,12 @@ for a in "$@"; do
     --output-format|--json-schema) json_mode=1 ;;
   esac
   # Clave envolvente: la que exige el esquema recibido (hallazgos o veredictos).
-  [ "$prev" = "--json-schema" ] && clave="$(jq -r '.required[0]' "$a")"
+  [ "$prev" = "--json-schema" ] && { sch="$a"; clave="$(jq -r '.required[0]' "$a")"; }
   prev="$a"
 done
+# Esquema de varias claves (revise): {"hallazgos": OUT, "seguimiento": $STUB_AGY_SEGUIMIENTO o []}.
+multi=0
+[ -n "${sch:-}" ] && [ "$(jq '.required | length' "$sch")" -gt 1 ] && multi=1
 
 default_hallazgos() {
   if [ "$clave" = "veredictos" ]; then
@@ -61,7 +64,11 @@ default_prose() {
 if [ -z "${STUB_AGY_EMPTY:-}" ]; then
   if [ "$json_mode" = "1" ]; then
     body="${STUB_AGY_OUT:-$(default_hallazgos)}"
-    printf '{"structured_output":{"%s":%s}}' "$clave" "$body"
+    if [ "$multi" = 1 ]; then
+      printf '{"structured_output":{"hallazgos":%s,"seguimiento":%s}}' "$body" "${STUB_AGY_SEGUIMIENTO:-[]}"
+    else
+      printf '{"structured_output":{"%s":%s}}' "$clave" "$body"
+    fi
   else
     printf '%s' "${STUB_AGY_OUT:-$(default_prose)}"
   fi

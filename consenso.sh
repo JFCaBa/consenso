@@ -172,6 +172,19 @@ consenso_validar_veredictos() {
          and ([.[].punto] | length == (unique | length))' "$1" >/dev/null 2>&1
 }
 
+consenso_validar_seguimiento() {
+  # $1 = seguimiento (array), $2 = pendientes enviadas (array de {id, …}). 0 si
+  # cada elemento cumple el contrato (objecion de las pendientes, estado
+  # resuelta|sigue_abierta, argumento string) y ninguna objeción se repite.
+  jq -e --slurpfile p "$2" '($p[0] | map(.id)) as $ids
+    | type=="array"
+    and all(.[]; type=="object"
+      and (.objecion | type=="string") and (.objecion as $o | $ids | index($o) != null)
+      and (.argumento | type=="string")
+      and (.estado | type=="string" and (. == "resuelta" or . == "sigue_abierta")))
+    and ([.[].objecion] | length == (unique | length))' "$1" >/dev/null 2>&1
+}
+
 consenso_extraer_json() {
   # $1=id, $2=fichero raw, $3=out, $4=clave (hallazgos por defecto, o
   # veredictos). Aplica extract del registro ({CLAVE} -> clave) y, para
@@ -202,6 +215,11 @@ consenso_extraer_json() {
     else
       consenso_desenfence "$raw" | jq -e '.' >"$out" 2>>"$out.err" || return 1
     fi
+  fi
+  # Un esquema de varias claves (revise) llega como objeto también por
+  # via=prompt: se toma la clave pedida.
+  if jq -e --arg c "$clave" 'type=="object" and has($c)' "$out" >/dev/null 2>&1; then
+    jq --arg c "$clave" '.[$c]' "$out" > "$out.clave" && mv "$out.clave" "$out"
   fi
   consenso_validate_json "$out" || return 1
   if [ "$clave" = "veredictos" ] && ! consenso_validar_veredictos "$out"; then
@@ -676,58 +694,235 @@ cmd_round0() {
   cp "$content_tmp" "$run_dir/entrada"
   [ -n "$task" ] && consenso_log_append "$run_dir" "Tarea: $task · gate $gate · v1"
 
-  # Ronda 0 corre el elenco detectado EN PARALELO (spec: "en paralelo"). Cada
-  # agente escribe en su propio fichero, así que no hay colisión.
-  local elenco n id rol rc_detect
-  elenco="$(consenso_detectar)" || { rc_detect=$?; rm -f "$content_tmp"; return "$rc_detect"; }
+  local elenco id rc
+  elenco="$(consenso_preparar_elenco "$run_dir")" || { rc=$?; rm -f "$content_tmp"; return "$rc"; }
+  consenso_escribir_prompts "$run_dir" "$content_tmp" "$modo" "" $elenco || { rm -f "$content_tmp"; return 2; }
+  rm -f "$content_tmp"
+
+  local resultados participo=0
+  resultados="$(consenso_ejecutar_elenco "$run_dir" "$workdir" \
+    "$CONSENSO_HOME/prompts/hallazgos.schema.json" "$CONSENSO_HOME/prompts/_formato.md" $elenco)"
+  while read -r id rc; do
+    [ -n "$id" ] || continue
+    if [ "$rc" -eq 0 ]; then
+      participo=1
+      consenso_log_append "$run_dir" "- $id: participó ($(consenso_resumen_triaje "$run_dir/$id.json"))"
+    else
+      consenso_log_append "$run_dir" "$(consenso_linea_fallo "$id")"
+    fi
+  done <<EOF_RES
+$resultados
+EOF_RES
+
+  # Marca de run terminado: distingue una versión completa de una interrumpida
+  # o en la que no participó nadie (que se puede relanzar).
+  [ "$participo" -eq 1 ] && : > "$run_dir/completo"
+  # Última línea de stdout: el run_dir, para que Claude sepa dónde leer.
+  printf '%s\n' "$run_dir"
+}
+
+consenso_preparar_elenco() {
+  # $1 = run_dir. Detecta el elenco, lo persiste en run_dir/agentes, anota el
+  # modo revisor único y lo imprime. rc 4 si no hay ningún agente.
+  local run_dir="$1" elenco n
+  elenco="$(consenso_detectar)" || return $?
   n="$(printf '%s' "$elenco" | grep -c . || true)"
   if [ "$n" -eq 0 ]; then
     echo "consenso: ningún agente externo detectado. Instala alguno de:" >&2
     jq -r '.agentes[] | "  - \(.bin) (\(.id))"' "$CONSENSO_REGISTRY" >&2
-    rm -f "$content_tmp"
     return 4
   fi
   printf '%s\n' "$elenco" > "$run_dir/agentes"
-  if [ "$n" -eq 1 ]; then
-    consenso_log_append "$run_dir" "Modo: revisor único ($elenco)"
-  fi
+  [ "$n" -eq 1 ] && consenso_log_append "$run_dir" "Modo: revisor único ($elenco)"
+  printf '%s\n' "$elenco"
+}
 
-  # Construir TODOS los prompts antes de lanzar nada: si uno falla, abortamos
-  # sin dejar procesos huérfanos en background.
-  local prompts=() ids=() prompt
-  for id in $elenco; do
-    rol="$(consenso_rol_de "$id")"
-    prompt="$(consenso_build_prompt "$CONSENSO_HOME/$rol" "$content_tmp" "$modo")" \
-      || { rm -f "$content_tmp"; return 2; }
-    prompts[${#prompts[@]}]="$prompt"
-    ids[${#ids[@]}]="$id"
+consenso_escribir_prompts() {
+  # $1 = run_dir, $2 = contenido, $3 = modo, $4 = fichero de contexto extra
+  # (o vacío), resto = ids. Escribe run_dir/prompt-<id>.txt para cada agente
+  # ANTES de lanzar nada: si uno falla, se aborta sin procesos huérfanos.
+  local run_dir="$1" content="$2" modo="$3" contexto="$4" id rol
+  shift 4
+  for id in "$@"; do
+    rol="$(consenso_rol_de "$id")" || return 2
+    # Subshell, no grupo: el exit de un fallo no debe matar al script.
+    (
+      consenso_build_prompt "$CONSENSO_HOME/$rol" "$content" "$modo" || exit 2
+      if [ -n "$contexto" ]; then
+        printf '\n\n'
+        cat "$contexto"
+      fi
+    ) > "$run_dir/prompt-$id.txt" || return 2
   done
+}
 
-  # Lanzar todos en paralelo; esperar por pid para saber quién participó.
-  local pids=() j=0
-  for id in "${ids[@]}"; do
+consenso_ejecutar_elenco() {
+  # $1 = run_dir, $2 = workdir, $3 = esquema, $4 = formato (via=prompt), resto
+  # = ids. Lanza cada agente EN PARALELO con su run_dir/prompt-<id>.txt y
+  # salida run_dir/<id>.json, e imprime "<id> <rc>" por agente, en orden.
+  local run_dir="$1" workdir="$2" schema="$3" formato="$4" id
+  shift 4
+  local pids=() ids=() prompt
+  for id in "$@"; do
+    prompt="$(cat "$run_dir/prompt-$id.txt")"
+    rm -f "$run_dir/prompt-$id.txt"
     # cwd = repo revisado: si el CLI explora, que explore ese repo y no el
     # directorio desde el que se llamó a consenso.
-    ( consenso_fijar_rutas "$id" && cd "$workdir" && consenso_agent_with_retry "$id" "${prompts[$j]}" "$run_dir/$id.json" ) &
+    ( consenso_fijar_rutas "$id" && cd "$workdir" \
+        && consenso_agent_with_retry "$id" "$prompt" "$run_dir/$id.json" "$schema" hallazgos "$formato" ) &
     pids[${#pids[@]}]=$!
-    j=$((j + 1))
+    ids[${#ids[@]}]="$id"
   done
-  local i=0 rc_agente
+  local i=0
   for id in "${ids[@]}"; do
     wait "${pids[$i]}"
-    rc_agente=$?
-    if [ "$rc_agente" -eq 0 ]; then
-      consenso_log_append "$run_dir" "- $id: participó ($(consenso_resumen_triaje "$run_dir/$id.json"))"
-    else
-      consenso_log_append "$run_dir" "- $id: FALLÓ — revisión fallida, no \"sin hallazgos\"; no hay $id.json (causa en $id.json.err)"
-    fi
+    printf '%s %s\n' "$id" "$?"
     i=$((i + 1))
   done
+}
 
+consenso_linea_fallo() {
+  # $1 = id. Línea de log de un agente que no dejó revisión.
+  printf -- '- %s: FALLÓ — revisión fallida, no "sin hallazgos"; no hay %s.json (causa en %s.json.err)' "$1" "$1" "$1"
+}
+
+consenso_resumen_seguimiento() {
+  # $1 = seguimiento validado, $2 = pendientes enviadas.
+  jq -r --slurpfile p "$2" '
+    ($p[0] | map(.id)) as $ids | ([.[].objecion]) as $vs
+    | "seguimiento: \(map(select(.estado == "resuelta")) | length) resueltas, \(map(select(.estado == "sigue_abierta")) | length) siguen abiertas"
+    + (($ids - $vs) | if length > 0 then "; sin seguimiento: \(join(", "))" else "" end)' "$1"
+}
+
+cmd_revise() {
+  # Versión nueva de una tarea: reserva g<N>/v<k+1> y pide a cada agente, en
+  # una llamada, hallazgos nuevos y un seguimiento de las objeciones pendientes.
+  local workdir="." task="" gate="" diff_file="" plan_file=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --task|--gate|--workdir|--diff|--plan)
+        if [ $# -lt 2 ]; then
+          echo "revise: falta valor para $1" >&2
+          return 64
+        fi
+        case "$1" in
+          --task) task="$2" ;;
+          --gate) gate="$2" ;;
+          --workdir) workdir="$2" ;;
+          --diff) diff_file="$2" ;;
+          --plan) plan_file="$2" ;;
+        esac
+        shift 2 ;;
+      *) echo "revise: opción desconocida: $1" >&2; return 64 ;;
+    esac
+  done
+  consenso_registry_validar "$CONSENSO_REGISTRY" || return $?
+  if [ -z "$task" ]; then
+    echo "revise: falta --task (y --gate)" >&2
+    return 64
+  fi
+  consenso_validar_tarea "$task" "$gate" || return $?
+  if [ -n "$plan_file" ] && [ -n "$diff_file" ]; then
+    echo "revise: --plan y --diff son excluyentes" >&2
+    return 64
+  fi
+  local modo="diff"
+  [ -n "$plan_file" ] && modo="plan"
+
+  local gdir k prev obj
+  gdir="$(consenso_tarea_dir "$workdir" "$task" "$gate")"
+  k="$(consenso_ultima_version "$gdir")"
+  if [ -z "$k" ]; then
+    echo "revise: la tarea $task, gate $gate, no tiene v1 (lanza round0 --task $task --gate $gate)" >&2
+    return 64
+  fi
+  prev="$gdir/v$k"
+  if [ ! -f "$prev/completo" ]; then
+    echo "revise: v$k está incompleta (run interrumpido o sin participantes); borra $prev y relanza" >&2
+    return 64
+  fi
+  obj="$gdir/objeciones.json"
+  if [ ! -f "$obj" ]; then
+    echo "revise: falta $obj; sintetiza v$k y escribe objeciones.json antes de revise" >&2
+    return 64
+  fi
+  if ! consenso_validar_objeciones "$obj"; then
+    echo "revise: $obj no cumple el contrato (version, ids O<n> únicos, estado válido, nota)" >&2
+    return 65
+  fi
+  if [ "$(jq -r '.version' "$obj")" != "$k" ]; then
+    echo "revise: objeciones.json es de v$(jq -r '.version' "$obj") y la última es v$k; sintetiza v$k antes de revise" >&2
+    return 64
+  fi
+
+  local content_tmp
+  content_tmp="$(mktemp)"
+  if ! consenso_get_content "$workdir" "${plan_file:-$diff_file}" > "$content_tmp"; then
+    echo "consenso: no hay contenido que revisar (diff o plan vacío)" >&2
+    rm -f "$content_tmp"
+    return 3
+  fi
+  if cmp -s "$content_tmp" "$prev/entrada"; then
+    echo "revise: la entrada no cambió respecto a v$k" >&2
+    rm -f "$content_tmp"
+    return 64
+  fi
+
+  local nk=$((k + 1)) run_dir rc
+  run_dir="$(consenso_reservar_version "$workdir" "$task" "$gate" "$nk")" || { rc=$?; rm -f "$content_tmp"; return "$rc"; }
+  run_dir="$(cd "$run_dir" && pwd)"
+  consenso_init_log "$run_dir" "Revisión de v$k"
+  printf '%s' "$modo" > "$run_dir/modo"
+  cp "$content_tmp" "$run_dir/entrada"
   rm -f "$content_tmp"
-  # Marca de run terminado: distingue una versión completa de una interrumpida.
-  : > "$run_dir/completo"
-  # Última línea de stdout: el run_dir, para que Claude sepa dónde leer.
+  consenso_log_append "$run_dir" "Tarea: $task · gate $gate · v$nk (revisión de v$k)"
+
+  # Lo acordado también es pendiente: el revisor comprueba que se aplicó.
+  jq '[.objeciones[] | select(.estado == "abierta" or .estado == "acordada") | {id, hallazgo, estado}]' "$obj" > "$run_dir/pendientes.json"
+  diff -u -L "v$k/entrada" -L "v$nk/entrada" "$prev/entrada" "$run_dir/entrada" > "$run_dir/cambios"
+  {
+    printf '=== CAMBIOS RESPECTO A v%s ===\n' "$k"
+    cat "$run_dir/cambios"
+    printf '=== FIN DE LOS CAMBIOS ===\n\n=== OBJECIONES PENDIENTES ===\n'
+    if [ "$(jq 'length' "$run_dir/pendientes.json")" -eq 0 ]; then
+      printf 'sin objeciones pendientes\n'
+    else
+      cat "$run_dir/pendientes.json"
+      printf '\n'
+    fi
+    printf '=== FIN DE LAS OBJECIONES ===\n\n'
+    printf 'Esta es la versión v%s. Para CADA objeción pendiente, di en `seguimiento` si esta versión la resuelve (`resuelta`) o no (`sigue_abierta`), con el argumento. En `hallazgos`, solo problemas NUEVOS de esta versión.\n' "$nk"
+  } > "$run_dir/contexto"
+
+  local elenco id
+  elenco="$(consenso_preparar_elenco "$run_dir")" || return $?
+  consenso_escribir_prompts "$run_dir" "$run_dir/entrada" "$modo" "$run_dir/contexto" $elenco || return 2
+
+  local resultados participo=0 linea seg
+  resultados="$(consenso_ejecutar_elenco "$run_dir" "$workdir" \
+    "$CONSENSO_HOME/prompts/revise.schema.json" "$CONSENSO_HOME/prompts/_formato_revise.md" $elenco)"
+  while read -r id rc; do
+    [ -n "$id" ] || continue
+    if [ "$rc" -ne 0 ]; then
+      consenso_log_append "$run_dir" "$(consenso_linea_fallo "$id")"
+      continue
+    fi
+    participo=1
+    linea="- $id: participó ($(consenso_resumen_triaje "$run_dir/$id.json")"
+    seg="$run_dir/$id.seguimiento.json"
+    if consenso_extraer_json "$id" "$run_dir/$id.json.raw" "$seg" seguimiento \
+        && consenso_validar_seguimiento "$seg" "$run_dir/pendientes.json"; then
+      linea="$linea; $(consenso_resumen_seguimiento "$seg" "$run_dir/pendientes.json"))"
+    else
+      rm -f "$seg"
+      linea="$linea; seguimiento fuera de contrato, causa en $id.seguimiento.json.err)"
+    fi
+    consenso_log_append "$run_dir" "$linea"
+  done <<EOF_RES
+$resultados
+EOF_RES
+
+  [ "$participo" -eq 1 ] && : > "$run_dir/completo"
   printf '%s\n' "$run_dir"
 }
 
@@ -1152,7 +1347,8 @@ main() {
     alternativa) cmd_alternativa "$@" ;;
     doctor) cmd_doctor "$@" ;;
     report) cmd_report "$@" ;;
-    "") echo "uso: consenso.sh <round0|debate|report|alternativa|doctor> [opciones]" >&2; return 64 ;;
+    revise) cmd_revise "$@" ;;
+    "") echo "uso: consenso.sh <round0|revise|debate|report|alternativa|doctor> [opciones]" >&2; return 64 ;;
     *) echo "consenso: subcomando desconocido: $sub" >&2; return 64 ;;
   esac
 }

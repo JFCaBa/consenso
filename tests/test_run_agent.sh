@@ -66,5 +66,34 @@ assert_exit 1 env STUB_QWEN_OUT='[{"punto":"P1","veredicto":"cedo","argumento":"
   bash -c ". '$HERE/../consenso.sh'; consenso_agent_with_retry qwen p '$tmp/v-dup.json' '$P/veredictos.schema.json' veredictos '$P/_formato_veredictos.md'"
 assert_exit 1 test -e "$tmp/v-dup.json"
 
+# revise: un esquema con dos claves; del mismo raw salen hallazgos y seguimiento.
+RS="$P/revise.schema.json"; RF="$P/_formato_revise.md"
+SEG='[{"objecion":"O1","estado":"resuelta","argumento":"x"}]'
+STUB_CODEX_SEGUIMIENTO="$SEG" run_agent_json codex "p" "$tmp/r-codex.json" "$RS" hallazgos "$RF"
+assert_contains "$(cat "$tmp/r-codex.json")" "division por cero" "revise codex: hallazgos"
+consenso_extraer_json codex "$tmp/r-codex.json.raw" "$tmp/r-codex.seg.json" seguimiento
+assert_eq "$(jq -r '.[0].estado' "$tmp/r-codex.seg.json")" "resuelta" "revise codex: seguimiento del mismo raw"
+STUB_AGY_SEGUIMIENTO="$SEG" run_agent_json agy "p" "$tmp/r-agy.json" "$RS" hallazgos "$RF"
+consenso_extraer_json agy "$tmp/r-agy.json.raw" "$tmp/r-agy.seg.json" seguimiento
+assert_eq "$(jq -r '.[0].estado' "$tmp/r-agy.seg.json")" "resuelta" "revise agy: seguimiento"
+STUB_QWEN_ARGS_FILE="$tmp/qwen-r.txt" STUB_QWEN_OUT="$(printf '```json\n{"hallazgos":[],"seguimiento":%s}\n```' "$SEG")" \
+  run_agent_json qwen "p" "$tmp/r-qwen.json" "$RS" hallazgos "$RF"
+assert_eq "$(cat "$tmp/r-qwen.json")" "[]" "revise qwen: hallazgos del objeto"
+consenso_extraer_json qwen "$tmp/r-qwen.json.raw" "$tmp/r-qwen.seg.json" seguimiento
+assert_eq "$(jq -r '.[0].objecion' "$tmp/r-qwen.seg.json")" "O1" "revise qwen: seguimiento del objeto"
+assert_contains "$(cat "$tmp/qwen-r.txt")" "sigue_abierta" "revise qwen: el prompt lleva el formato de revise"
+# Contrato del seguimiento: estado, ids repetidos y ids que no estaban pendientes.
+printf '[{"id":"O1"},{"id":"O2"}]' > "$tmp/pend.json"
+printf '%s' "$SEG" > "$tmp/seg-ok.json"
+assert_exit 0 consenso_validar_seguimiento "$tmp/seg-ok.json" "$tmp/pend.json"
+printf '[]' > "$tmp/seg-vacio.json"
+assert_exit 0 consenso_validar_seguimiento "$tmp/seg-vacio.json" "$tmp/pend.json"
+printf '[{"objecion":"O1","estado":"quizas","argumento":"x"}]' > "$tmp/seg-1.json"
+printf '[{"objecion":"O1","estado":"resuelta","argumento":"x"},{"objecion":"O1","estado":"sigue_abierta","argumento":"y"}]' > "$tmp/seg-2.json"
+printf '[{"objecion":"O9","estado":"resuelta","argumento":"x"}]' > "$tmp/seg-3.json"
+for f in seg-1 seg-2 seg-3; do
+  assert_exit 1 consenso_validar_seguimiento "$tmp/$f.json" "$tmp/pend.json"
+done
+
 rm -rf "$tmp"
 echo "OK test_run_agent"
