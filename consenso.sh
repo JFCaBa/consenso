@@ -606,7 +606,7 @@ cmd_round0() {
   fi
   printf '%s\n' "$elenco" > "$run_dir/agentes"
   if [ "$n" -eq 1 ]; then
-    consenso_log_append "$run_dir" "AVISO: consenso debilitado (1 solo agente externo: $elenco)"
+    consenso_log_append "$run_dir" "Modo: revisor único ($elenco)"
   fi
 
   # Construir TODOS los prompts antes de lanzar nada: si uno falla, abortamos

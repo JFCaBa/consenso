@@ -35,7 +35,8 @@ el diseño original en
 `jq`, `git`, y al menos un CLI de agente en modo headless. Los soportados
 están en `agents/registry.json`: `codex`, `agy` (Antigravity), `qwen` y
 `opencode`. Consenso detecta los instalados en cada ejecución y corre con los
-que haya (con 1 solo agente lo marca como "consenso debilitado"; con 0, error).
+que haya (con 1 solo agente corre en modo "revisor único": ese agente y Claude, con
+debate entre los dos si discrepan; con 0, error).
 
 `codex` recibe el prompt por stdin (`"prompt_via": "stdin"` en el registro),
 así que un plan o diff grande no choca con el límite de argv (E2BIG). `agy`

@@ -24,6 +24,9 @@ assert_eq "$(cat "$run_dir/modo")" "diff" "diff: persiste el modo en run_dir"
 # Elenco completo: 4 agentes -> 4 json + fichero agentes.
 out4="$(bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp")"
 run_dir4="$(printf '%s\n' "$out4" | tail -1)"
+case "$(cat "$run_dir4/log.md")" in
+  *"revisor único"*) fail "con 4 agentes no es modo revisor único" ;;
+esac
 assert_eq "$(cat "$run_dir4/agentes")" "codex
 agy
 qwen
@@ -31,10 +34,13 @@ opencode" "persiste el elenco completo en orden"
 assert_contains "$(cat "$run_dir4/qwen.json")" "sin test" "escribe qwen.json"
 assert_contains "$(cat "$run_dir4/opencode.json")" "error silenciado" "escribe opencode.json"
 
-# Degradación a 1 -> aviso.
+# Revisor único: modo de primera clase, sin aviso de "debilitado".
 out1="$(CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp")"
 run_dir1="$(printf '%s\n' "$out1" | tail -1)"
-assert_contains "$(cat "$run_dir1/log.md")" "consenso debilitado" "avisa con 1 solo agente"
+assert_contains "$(cat "$run_dir1/log.md")" "Modo: revisor único (codex)" "registra el modo revisor único"
+case "$(cat "$run_dir1/log.md")" in
+  *debilitado*) fail "con 1 agente ya no avisa de consenso debilitado" ;;
+esac
 
 # CONSENSO_AGENTS con id desconocido: consenso_detectar devuelve rc 64, y ese
 # rc no debe perderse tras la limpieza del content_tmp en round0.

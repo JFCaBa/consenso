@@ -38,5 +38,12 @@ assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "no se debate" "lo 
 
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "fuera_de_alcance: true" "la skill filtra por el campo"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "hipotetica: true" "la regla del bucle usa el campo"
+assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "**Revisor único**" "la skill sintetiza con un solo revisor"
+assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "solo de Claude" "la skill cubre el revisor único que falló"
+for f in "$HERE/../skills/consenso/SKILL.md" "$HERE/../README.md"; do
+  case "$(cat "$f")" in
+    *debilitado*) fail "$f ya no habla de consenso debilitado" ;;
+  esac
+done
 
 echo "OK test_prompts"

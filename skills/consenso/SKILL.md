@@ -48,8 +48,8 @@ dudosos, alternativas más simples) en lugar de código.
    Si falta el `<id>.json` de un agente, su revisión **falló** (el log dice
    `FALLÓ` y la causa está en `<id>.json.err`): no la cuentes como "sin
    hallazgos". Un `[]` sí es una revisión completa y limpia.
-   Si el log avisa de "consenso debilitado", pesa más tu propia lente y hazlo
-   constar en el informe.
+   Si el log dice `Modo: revisor único`, la síntesis es de dos partes (ver
+   **Revisor único** en el paso 3).
 
 2. **Tu revisión.** Revisa tú el mismo diff con tu lente (legibilidad,
    mantenibilidad) y produce tus propios hallazgos en el mismo formato.
@@ -66,6 +66,17 @@ dudosos, alternativas más simples) en lugar de código.
      alta confianza.
    - **Singleton**: solo uno lo ve → candidato a debate.
    - **Conflicto**: uno propone X y otro lo contradice → a debate.
+
+   **Revisor único** (un solo agente externo en `run_dir/agentes`): no hay
+   "varios", así que la síntesis es entre el revisor y tú.
+   - Lo veis los dos → **Acuerdo**.
+   - Hallazgo del revisor que tú validas → **Acuerdo**; que rebates → a debate.
+   - Hallazgo tuyo que el revisor no vio → a debate, para que lo evalúe: nadie
+     más lo ha revisado.
+   - El debate es con ese revisor, con el mismo límite de 2 rondas. Sin
+     convergencia, va al informe como desacuerdo y decide el usuario.
+   - Si el único revisor FALLÓ, dilo en el informe: la revisión es
+     solo de Claude.
 
 4. **Debate (solo si hay singletons/conflictos dentro del alcance).** Escribe un fichero de puntos
    en disputa con las críticas cruzadas y ejecuta
