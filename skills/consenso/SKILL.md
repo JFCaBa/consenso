@@ -78,11 +78,22 @@ dudosos, alternativas más simples) en lugar de código.
    - Si el único revisor FALLÓ, dilo en el informe: la revisión es
      solo de Claude.
 
-4. **Debate (solo si hay singletons/conflictos dentro del alcance).** Escribe un fichero de puntos
-   en disputa con las críticas cruzadas y ejecuta
+4. **Debate (solo si hay singletons/conflictos dentro del alcance).** Escribe
+   los puntos en disputa como un array JSON, un objeto por punto:
+   `{"id": "P1", "punto": "<el hallazgo en disputa>", "posturas": "<las críticas cruzadas, incluida la tuya>"}`.
+   Ejecuta
    `bash "${CLAUDE_PLUGIN_ROOT}/consenso.sh" debate --points <fichero> --run-dir <run_dir> --round 1`.
-   Lee las respuestas `debate-1-<id>.md` de cada agente del elenco. Si
-   convergen, cierra. Si no, una **ronda 2** como máximo.
+   El script ya entrega a cada agente la entrada revisada y sus hallazgos de
+   la ronda 0; no los copies en los puntos. Lee `debate-N-<id>.json` de cada
+   agente: un veredicto por punto (`mantengo` | `rebato` | `cedo`) con su
+   argumento. Un punto **converge** cuando todos los que respondieron quedan
+   en una misma postura (los demás `cedo`). Si dos o más mantienen o rebaten
+   desde posturas distintas, no converge: juzga la postura de cada uno por su
+   argumento, no solo por la palabra. Un punto sin veredicto (el log dice
+   `sin veredicto`) cuenta como no resuelto. Si un agente `NO respondió`,
+   relanza la misma ronda: solo corre a los que faltan. Con lo que no
+   converja, una **ronda 2** (`--round 2`, solo esos puntos; el script añade
+   los veredictos de la ronda 1). No hay ronda 3: el script la rechaza.
 
 5. **Fallback (deadlock tras 1–2 rondas).** No fuerces un ganador: presenta al
    usuario las dos posturas enfrentadas con tu recomendación y deja que decida.

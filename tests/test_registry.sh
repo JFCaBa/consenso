@@ -24,6 +24,15 @@ assert_exit 65 consenso_registry_validar "$tmp/extract.json"
 printf '{"agentes":[{"id":"a","bin":"x","lente":"l","rol":"r","prioridad":1,"modelo_auto":{"args":[],"match":"x"},"prosa_argv":["a"],"json":{"via":"schema","argv":["a"],"salida":"stdout","extract":".x"}}]}' > "$tmp/modelo_auto.json"
 assert_exit 65 consenso_registry_validar "$tmp/modelo_auto.json"
 
+# extract admite el segmento {CLAVE} (hallazgos o veredictos), y solo ese.
+for ex in '.{CLAVE}' '.a.{CLAVE}'; do
+  printf '{"agentes":[{"id":"a","bin":"x","lente":"l","rol":"r","prioridad":1,"prosa_argv":["a"],"json":{"via":"schema","argv":["a"],"salida":"stdout","extract":"%s"}}]}' "$ex" > "$tmp/clave.json"
+  assert_exit 0 consenso_registry_validar "$tmp/clave.json"
+done
+printf '{"agentes":[{"id":"a","bin":"x","lente":"l","rol":"r","prioridad":1,"prosa_argv":["a"],"json":{"via":"schema","argv":["a"],"salida":"stdout","extract":".{OTRA}"}}]}' > "$tmp/otra.json"
+assert_exit 65 consenso_registry_validar "$tmp/otra.json"
+assert_eq "$(jq -r '[.agentes[] | select(.json.via=="schema") | .json.extract | contains("{CLAVE}")] | all' "$HERE/../agents/registry.json")" "true" "los agentes via=schema extraen por {CLAVE}"
+
 # Acceso a agentes.
 assert_contains "$(consenso_agente_json codex)" '"id":"codex"' "devuelve el objeto de codex"
 assert_exit 2 consenso_agente_json inexistente

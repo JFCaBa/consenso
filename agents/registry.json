@@ -13,7 +13,7 @@
         "via": "schema",
         "argv": ["exec", "--skip-git-repo-check", "--output-schema", "{SCHEMA}", "-o", "{RAW}"],
         "salida": "fichero",
-        "extract": ".hallazgos"
+        "extract": ".{CLAVE}"
       }
     },
     {
@@ -30,7 +30,7 @@
         "via": "schema",
         "argv": ["--dangerously-skip-permissions", "--print-timeout", "6m", "--model", "{MODEL}", "--output-format", "json", "--json-schema", "{SCHEMA}", "-p", "{PROMPT}"],
         "salida": "stdout",
-        "extract": ".structured_output.hallazgos"
+        "extract": ".structured_output.{CLAVE}"
       }
     },
     {

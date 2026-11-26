@@ -4,6 +4,8 @@
 # como haría el modelo al pedírsele solo JSON. El ruido real (warnings, spinner,
 # errores de API) va a stderr, así que stdout queda limpio para desenfence +
 # parseo. Variables: STUB_QWEN_OUT, STUB_QWEN_EMPTY, STUB_QWEN_RC, STUB_QWEN_SLEEP.
+# STUB_QWEN_ARGS_FILE: si está seteada, escribe ahí el último argumento (el prompt).
+[ -n "${STUB_QWEN_ARGS_FILE:-}" ] && printf '%s' "${!#}" > "$STUB_QWEN_ARGS_FILE"
 sleep "${STUB_QWEN_SLEEP:-0}"
 if [ -z "${STUB_QWEN_EMPTY:-}" ]; then
   if [ -n "${STUB_QWEN_OUT:-}" ]; then

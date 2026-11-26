@@ -161,14 +161,27 @@ consenso_desenfence() {
        { print }' "$1" "$1"
 }
 
-consenso_extraer_hallazgos() {
-  # $1=id, $2=fichero raw, $3=out. Aplica extract del registro y, para
+consenso_validar_veredictos() {
+  # $1 = fichero con el array de veredictos. 0 si cada elemento cumple el
+  # contrato (punto y argumento string, veredicto del enum) y ningún punto se
+  # repite. Los agentes via=prompt no validan esquema: esto lo hace por ellos.
+  jq -e 'all(.[]; type=="object"
+           and (.punto | type=="string")
+           and (.argumento | type=="string")
+           and (.veredicto | type=="string" and (. == "mantengo" or . == "rebato" or . == "cedo")))
+         and ([.[].punto] | length == (unique | length))' "$1" >/dev/null 2>&1
+}
+
+consenso_extraer_json() {
+  # $1=id, $2=fichero raw, $3=out, $4=clave (hallazgos por defecto, o
+  # veredictos). Aplica extract del registro ({CLAVE} -> clave) y, para
   # via=prompt, normaliza en dos pasos: si el valor extraído es un string,
   # quita los fences exteriores y lo parsea como JSON. Valida el contrato final.
-  local id="$1" raw="$2" out="$3"
+  local id="$1" raw="$2" out="$3" clave="${4:-hallazgos}"
   local via extract
   via="$(consenso_agente_json "$id" | jq -r '.json.via')"
   extract="$(consenso_agente_json "$id" | jq -r '.json.extract')"
+  extract="${extract//\{CLAVE\}/$clave}"
   if [ "$via" = "schema" ]; then
     jq -e "$extract" "$raw" >"$out" 2>>"$out.err" || return 1
   else
@@ -190,15 +203,23 @@ consenso_extraer_hallazgos() {
       consenso_desenfence "$raw" | jq -e '.' >"$out" 2>>"$out.err" || return 1
     fi
   fi
-  consenso_validate_json "$out"
+  consenso_validate_json "$out" || return 1
+  if [ "$clave" = "veredictos" ] && ! consenso_validar_veredictos "$out"; then
+    echo "veredictos fuera de contrato (campos, enum o punto repetido)" >>"$out.err"
+    return 1
+  fi
 }
 
 run_agent_json() {
-  # $1 = id del registro, $2 = prompt, $3 = out_file. Escribe el array JSON de
-  # hallazgos en $out. 0 si hay array válido.
+  # $1 = id del registro, $2 = prompt, $3 = out_file, y opcionales $4 =
+  # esquema, $5 = clave envolvente, $6 = formato para via=prompt (por defecto,
+  # los de hallazgos). Escribe el array JSON en $out. 0 si hay array válido.
   # via=schema: JSON Schema nativo del CLI (codex --output-schema, agy
   # --json-schema); via=prompt: instrucciones de _formato.md + normalización.
   local id="$1" prompt="$2" out="$3"
+  local schema="${4:-$CONSENSO_HOME/prompts/hallazgos.schema.json}"
+  local clave="${5:-hallazgos}"
+  local formato="${6:-$CONSENSO_HOME/prompts/_formato.md}"
   local bin model timeout json_via prompt_via salida raw rc
   bin="$(consenso_bin_de "$id")" || return 2
   model="$(consenso_model_de "$id")"
@@ -213,9 +234,9 @@ run_agent_json() {
   if [ "$json_via" = "prompt" ]; then
     prompt="$prompt
 
-$(cat "$CONSENSO_HOME/prompts/_formato.md")"
+$(cat "$formato")"
   fi
-  consenso_argv "$id" json "$prompt" "$CONSENSO_HOME/prompts/hallazgos.schema.json" "$raw" "$model" || return $?
+  consenso_argv "$id" json "$prompt" "$schema" "$raw" "$model" || return $?
   # Destino del stdout: $raw si el JSON sale por stdout; ruido a $out.stdout
   # si el CLI escribe {RAW} él mismo (codex -o). Fuente del stdin: el prompt
   # con prompt_via=stdin, /dev/null si no.
@@ -230,15 +251,16 @@ $(cat "$CONSENSO_HOME/prompts/_formato.md")"
   if [ "$rc" -ne 0 ] || [ ! -s "$raw" ]; then
     return 1
   fi
-  consenso_extraer_hallazgos "$id" "$raw" "$out"
+  consenso_extraer_json "$id" "$raw" "$out" "$clave"
 }
 
 consenso_agent_with_retry() {
-  # $1 = agente, $2 = prompt, $3 = out_file. 0 si validó, 1 si agotó reintentos.
+  # $1 = agente, $2 = prompt, $3 = out_file, $4-$6 opcionales como en
+  # run_agent_json (esquema, clave, formato). 0 si validó, 1 si agotó reintentos.
   local agent="$1"
   local prompt="$2"
   local out="$3"
-  if run_agent_json "$agent" "$prompt" "$out"; then
+  if run_agent_json "$agent" "$prompt" "$out" "${@:4}"; then
     return 0
   fi
   # Guardar el diagnóstico del 1er intento antes de reintentar: run_agent_json
@@ -250,7 +272,7 @@ consenso_agent_with_retry() {
   # Reintento simple: la única causa de fallo con JSON Schema forzado es un
   # error transitorio del CLI/API (timeout, capacidad, etc.), no un problema
   # de formato — no hace falta variar el prompt.
-  if run_agent_json "$agent" "$prompt" "$out"; then
+  if run_agent_json "$agent" "$prompt" "$out" "${@:4}"; then
     return 0
   fi
   # La redirección de este bloque abre y trunca "$out.err" antes de ejecutar
@@ -330,7 +352,7 @@ consenso_registry_validar() {
       and (.json.via? as $v | ["schema","prompt"] | index($v) != null)
       and (.json.salida? as $s | ["stdout","fichero"] | index($s) != null)
       and (.json.argv? | type=="array" and length>0 and all(.[]; type=="string"))
-      and (.json.extract? | type=="string" and test("^\\.([a-zA-Z0-9_]+(\\.[a-zA-Z0-9_]+)*)?$"))
+      and (.json.extract? | type=="string" and test("^\\.(([a-zA-Z0-9_]+|\\{CLAVE\\})(\\.([a-zA-Z0-9_]+|\\{CLAVE\\}))*)?$"))
       and (.modelo_auto == null or (.modelo_auto | type=="object"
             and (.args | type=="array" and length>0 and all(.[]; type=="string"))
             and (.match | type=="string" and length>0)))
@@ -590,8 +612,10 @@ cmd_round0() {
   titulo="Ronda 0 — revisión independiente"
   [ "$modo" = "plan" ] && titulo="$titulo (plan)"
   consenso_init_log "$run_dir" "$titulo"
-  # Persistir el modo para que el debate adapte su instrucción a este run.
+  # Persistir el modo para que el debate adapte su instrucción a este run, y
+  # la entrada revisada para que el debate se la dé a los agentes (memoria).
   printf '%s' "$modo" > "$run_dir/modo"
+  cp "$content_tmp" "$run_dir/entrada"
 
   # Ronda 0 corre el elenco detectado EN PARALELO (spec: "en paralelo"). Cada
   # agente escribe en su propio fichero, así que no hay colisión.
@@ -670,7 +694,70 @@ consenso_debate_instruccion() {
   if [ -f "$1/modo" ] && [ "$(cat "$1/modo")" = "plan" ]; then
     contexto="la revisión de un plan de implementación (prosa, no código)"
   fi
-  printf 'Estos son puntos en disputa de %s, con las críticas cruzadas de los otros revisores. Para cada punto, responde en prosa: ¿lo MANTIENES, lo REBATES o CEDES? Da un argumento técnico breve por cada uno.' "$contexto"
+  printf 'Estos son puntos en disputa de %s, con las críticas cruzadas de los otros revisores. Para CADA punto, por su id, da tu veredicto: lo MANTIENES, lo REBATES o CEDES, con un argumento técnico breve. Más abajo tienes la entrada revisada y tus hallazgos de la ronda 0: no hace falta que los busques.' "$contexto"
+}
+
+consenso_validar_puntos() {
+  # $1 = fichero de puntos. 0 si es un array JSON no vacío de {id, punto,
+  # posturas}, los tres strings (id no vacío) e id sin repetir.
+  jq -e 'type=="array" and length>0
+         and all(.[]; type=="object"
+           and (.id | type=="string" and length>0)
+           and (.punto | type=="string")
+           and (.posturas | type=="string"))
+         and ([.[].id] | length == (unique | length))' "$1" >/dev/null 2>&1
+}
+
+consenso_ronda_tiene() {
+  # $1 = run_dir, $2 = ronda. 0 si algún agente dejó ya su veredicto.
+  local f
+  for f in "$1"/debate-"$2"-*.json; do
+    [ -e "$f" ] && return 0
+  done
+  return 1
+}
+
+consenso_debate_prompt() {
+  # $1 = run_dir, $2 = id, $3 = ronda, $4 = fichero de puntos. Imprime el
+  # prompt del debate: instrucción, entrada revisada, hallazgos propios de la
+  # ronda 0, veredictos de la ronda 1 (solo en la 2) y los puntos.
+  local run_dir="$1" id="$2" ronda="$3" points="$4" x
+  consenso_debate_instruccion "$run_dir"
+  printf '\n'
+  if [ -f "$run_dir/entrada" ]; then
+    printf '\n=== ENTRADA REVISADA ===\n'
+    cat "$run_dir/entrada"
+    printf '\n=== FIN DE LA ENTRADA ===\n'
+  fi
+  if [ -f "$run_dir/$id.json" ]; then
+    printf '\n=== TUS HALLAZGOS EN RONDA 0 ===\n'
+    cat "$run_dir/$id.json"
+    printf '\n'
+  fi
+  if [ "$ronda" = "2" ]; then
+    printf '\n=== VEREDICTOS DE LA RONDA 1 ===\n'
+    for x in $(consenso_elenco_de "$run_dir"); do
+      if [ -f "$run_dir/debate-1-$x.json" ]; then
+        printf -- '--- %s ---\n' "$x"
+        cat "$run_dir/debate-1-$x.json"
+        printf '\n'
+      fi
+    done
+  fi
+  printf '\n=== PUNTOS EN DISPUTA ===\n'
+  cat "$points"
+  printf '\n'
+}
+
+consenso_resumen_veredictos() {
+  # $1 = veredictos de un agente, $2 = fichero de puntos. Imprime el recuento
+  # por veredicto y, si aplica, los puntos sin veredicto y los ids desconocidos.
+  jq -r --slurpfile p "$2" '
+    ($p[0] | map(.id)) as $ids | ([.[].punto]) as $vs
+    | def n(v): map(select(.veredicto == v)) | length;
+    "\(length) veredictos: \(n("mantengo")) mantengo, \(n("rebato")) rebato, \(n("cedo")) cedo"
+    + (($ids - $vs) | if length > 0 then "; sin veredicto: \(join(", "))" else "" end)
+    + (($vs - $ids) | if length > 0 then "; id desconocido: \(join(", "))" else "" end)' "$1"
 }
 
 cmd_debate() {
@@ -707,6 +794,15 @@ cmd_debate() {
     echo "debate: faltan --points o --run-dir" >&2
     return 64
   fi
+  case "$round" in
+    1|2) ;;
+    *) echo "debate: --round admite 1 o 2 (máximo 2 rondas; sin convergencia, al informe)" >&2
+       return 64 ;;
+  esac
+  if ! consenso_validar_puntos "$points_file"; then
+    echo "debate: --points debe ser un array JSON no vacío de {id, punto, posturas} con id único" >&2
+    return 64
+  fi
 
   local elenco
   elenco="$(consenso_elenco_de "$run_dir")"
@@ -715,23 +811,62 @@ cmd_debate() {
     return 64
   fi
 
-  local instruccion
-  instruccion="$(consenso_debate_instruccion "$run_dir")"
-  local points
-  points="$(cat "$points_file")"
-  local prompt="$instruccion
+  # Un agente via=schema sin {CLAVE} en extract solo sabe extraer hallazgos:
+  # fallaría en cada llamada. Mejor un error de configuración antes de nada.
+  local agent
+  for agent in $elenco; do
+    if consenso_agente_json "$agent" | jq -e '.json.via == "schema" and (.json.extract | contains("{CLAVE}") | not)' >/dev/null; then
+      echo "debate: $agent extrae una clave fija; usa {CLAVE} en json.extract del registro" >&2
+      return 65
+    fi
+  done
 
-$points"
+  if [ "$round" = "2" ] && ! consenso_ronda_tiene "$run_dir" 1; then
+    echo "debate: la ronda 2 exige veredictos de la ronda 1" >&2
+    return 64
+  fi
+  if [ "$round" = "1" ] && consenso_ronda_tiene "$run_dir" 2; then
+    echo "debate: la ronda 2 ya empezó; no se vuelve a la ronda 1" >&2
+    return 64
+  fi
+  local pendientes=""
+  for agent in $elenco; do
+    [ -f "$run_dir/debate-$round-$agent.json" ] || pendientes="$pendientes $agent"
+  done
+  if [ -z "$pendientes" ]; then
+    echo "debate: la ronda $round ya está completa (máximo 2 rondas)" >&2
+    return 64
+  fi
 
   # cwd = repo del run (<repo>/.consenso/<ts>), igual que en round0.
   run_dir="$(cd "$run_dir" && pwd)"
   local repo="${run_dir%/.consenso/*}"
-  local agent
+  # Los puntos de una ronda quedan fijados al primer intento: si al relanzarla
+  # cambiaran, el run tendría veredictos sobre dos versiones del mismo id.
+  local fijados="$run_dir/puntos-$round.json"
+  if [ -f "$fijados" ]; then
+    if ! cmp -s "$points_file" "$fijados"; then
+      echo "debate: los puntos de la ronda $round ya están fijados; relánzala con --points $fijados" >&2
+      return 64
+    fi
+  else
+    cp "$points_file" "$fijados"
+  fi
+  [ -f "$run_dir/entrada" ] || consenso_log_append "$run_dir" "- debate ronda $round: sin entrada original (run de una versión anterior)"
+
+  local prompt out
   for agent in $elenco; do
-    if ( consenso_fijar_rutas "$agent" && cd "$repo" && run_agent "$agent" "$prompt" "$run_dir/debate-$round-$agent.md" ); then
-      consenso_log_append "$run_dir" "- debate ronda $round: $agent respondió"
+    out="$run_dir/debate-$round-$agent.json"
+    if [ -f "$out" ]; then
+      consenso_log_append "$run_dir" "- debate ronda $round: $agent ya respondió, se omite"
+      continue
+    fi
+    prompt="$(consenso_debate_prompt "$run_dir" "$agent" "$round" "$points_file")"
+    if ( consenso_fijar_rutas "$agent" && cd "$repo" && consenso_agent_with_retry "$agent" "$prompt" "$out" \
+          "$CONSENSO_HOME/prompts/veredictos.schema.json" veredictos "$CONSENSO_HOME/prompts/_formato_veredictos.md" ); then
+      consenso_log_append "$run_dir" "- debate ronda $round: $agent respondió ($(consenso_resumen_veredictos "$out" "$points_file"))"
     else
-      consenso_log_append "$run_dir" "- debate ronda $round: $agent NO respondió (fallo del CLI o timeout)"
+      consenso_log_append "$run_dir" "- debate ronda $round: $agent NO respondió (fallo del CLI, timeout o veredicto fuera de contrato; causa en $(basename "$out").err)"
     fi
   done
 

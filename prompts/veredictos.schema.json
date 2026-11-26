@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "veredictos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "punto": {"type": "string"},
+          "veredicto": {"type": "string", "enum": ["mantengo", "rebato", "cedo"]},
+          "argumento": {"type": "string"}
+        },
+        "required": ["punto", "veredicto", "argumento"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["veredictos"],
+  "additionalProperties": false
+}

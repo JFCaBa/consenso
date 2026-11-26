@@ -19,11 +19,14 @@ jq -e . "$rd/agy.json" >/dev/null || fail "agy.json no es JSON válido"
 jq -e . "$rd/qwen.json" >/dev/null || fail "qwen.json no es JSON válido"
 jq -e . "$rd/opencode.json" >/dev/null || fail "opencode.json no es JSON válido"
 
-# debate encadenado sobre el mismo run_dir
-printf 'Punto: division por cero. Codex importante, Agy no lo ve.\n' > "$tmp/points.txt"
-STUB_CODEX_OUT='Mantengo: es un fallo real.' STUB_AGY_OUT='Cedo.' \
-  bash "$SCRIPT" debate --points "$tmp/points.txt" --run-dir "$rd" --round 1 >/dev/null
-assert_exit 0 test -f "$rd/debate-1-codex.md"
+# debate encadenado sobre el mismo run_dir: puntos JSON, veredictos JSON
+printf '[{"id":"P1","punto":"division por cero","posturas":"Codex importante, Agy no lo ve"}]' > "$tmp/points.json"
+V='[{"punto":"P1","veredicto":"mantengo","argumento":"es un fallo real"}]'
+STUB_CODEX_OUT="$V" STUB_AGY_OUT="$V" STUB_QWEN_OUT="$V" STUB_OPENCODE_OUT="$V" \
+  bash "$SCRIPT" debate --points "$tmp/points.json" --run-dir "$rd" --round 1 >/dev/null
+for id in codex agy qwen opencode; do
+  assert_eq "$(jq -r '.[0].veredicto' "$rd/debate-1-$id.json")" "mantengo" "debate-1-$id.json con veredicto"
+done
 
 # el log acumula ambas fases
 log="$(cat "$rd/log.md")"

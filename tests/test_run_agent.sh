@@ -43,5 +43,28 @@ EOF
 out_stdin="$( (CONSENSO_REGISTRY="$reg"; run_agent lector "hola por stdin" "$tmp/stdin.txt"); cat "$tmp/stdin.txt")"
 assert_contains "$out_stdin" "hola por stdin" "prompt_via stdin entrega el prompt por stdin"
 
+# Salida JSON generalizada: veredictos con su esquema, clave y formato.
+export CONSENSO_QWEN_BIN="$HERE/stubs/qwen"
+P="$HERE/../prompts"
+V1='[{"punto":"P1","veredicto":"cedo","argumento":"x"}]'
+STUB_CODEX_OUT="$V1" run_agent_json codex "p" "$tmp/v-codex.json" "$P/veredictos.schema.json" veredictos "$P/_formato_veredictos.md"
+assert_eq "$(jq -r '.[0].veredicto' "$tmp/v-codex.json")" "cedo" "codex: veredictos por esquema"
+STUB_AGY_OUT="$V1" run_agent_json agy "p" "$tmp/v-agy.json" "$P/veredictos.schema.json" veredictos "$P/_formato_veredictos.md"
+assert_eq "$(jq -r '.[0].veredicto' "$tmp/v-agy.json")" "cedo" "agy: veredictos por esquema"
+STUB_QWEN_ARGS_FILE="$tmp/qwen-args.txt" STUB_QWEN_OUT="$(printf '```json\n%s\n```' "$V1")" \
+  run_agent_json qwen "p" "$tmp/v-qwen.json" "$P/veredictos.schema.json" veredictos "$P/_formato_veredictos.md"
+assert_eq "$(jq -r '.[0].veredicto' "$tmp/v-qwen.json")" "cedo" "qwen: veredictos entre fences"
+assert_contains "$(cat "$tmp/qwen-args.txt")" "mantengo" "qwen: el prompt lleva el formato de veredictos"
+case "$(cat "$tmp/qwen-args.txt")" in
+  *severidad*) fail "qwen: el prompt de veredictos no lleva el formato de hallazgos" ;;
+esac
+# Contrato local de veredictos: enum y ids sin repetir.
+assert_exit 1 env STUB_QWEN_OUT='[{"punto":"P1","veredicto":"acepto","argumento":"x"}]' \
+  bash -c ". '$HERE/../consenso.sh'; consenso_agent_with_retry qwen p '$tmp/v-mal.json' '$P/veredictos.schema.json' veredictos '$P/_formato_veredictos.md'"
+assert_exit 1 test -e "$tmp/v-mal.json"
+assert_exit 1 env STUB_QWEN_OUT='[{"punto":"P1","veredicto":"cedo","argumento":"x"},{"punto":"P1","veredicto":"mantengo","argumento":"y"}]' \
+  bash -c ". '$HERE/../consenso.sh'; consenso_agent_with_retry qwen p '$tmp/v-dup.json' '$P/veredictos.schema.json' veredictos '$P/_formato_veredictos.md'"
+assert_exit 1 test -e "$tmp/v-dup.json"
+
 rm -rf "$tmp"
 echo "OK test_run_agent"

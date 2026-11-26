@@ -24,6 +24,7 @@ assert_eq "$(cat "$run_dir/modo")" "diff" "diff: persiste el modo en run_dir"
 # Elenco completo: 4 agentes -> 4 json + fichero agentes.
 out4="$(bash "$SCRIPT" round0 --diff "$tmp/d.txt" --workdir "$tmp")"
 run_dir4="$(printf '%s\n' "$out4" | tail -1)"
+assert_contains "$(cat "$run_dir4/entrada")" "return 1/0" "round0 guarda la entrada revisada"
 case "$(cat "$run_dir4/log.md")" in
   *"revisor único"*) fail "con 4 agentes no es modo revisor único" ;;
 esac

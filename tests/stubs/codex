@@ -41,13 +41,18 @@ fi
 sleep "${STUB_CODEX_SLEEP:-0}"
 
 out_file=""
+schema=""
 prev=""
 for a in "$@"; do
   if [ "$prev" = "-o" ]; then
     out_file="$a"
   fi
+  [ "$prev" = "--output-schema" ] && schema="$a"
   prev="$a"
 done
+# Clave envolvente: la que exige el esquema recibido (hallazgos o veredictos).
+clave="hallazgos"
+[ -n "$schema" ] && clave="$(jq -r '.required[0]' "$schema")"
 
 if [ -n "${STUB_CODEX_COUNTER:-}" ]; then
   count="0"
@@ -69,6 +74,10 @@ if [ -n "${STUB_CODEX_COUNTER:-}" ]; then
 fi
 
 default_hallazgos() {
+  if [ "$clave" = "veredictos" ]; then
+    printf '%s' '[{"punto":"P1","veredicto":"mantengo","argumento":"stub"}]'
+    return
+  fi
   printf '%s' '[{"severidad":"importante","ubicacion":"foo.py:2","problema":"division por cero","propuesta":"validar divisor","fuera_de_alcance":false,"hipotetica":false}]'
 }
 default_prose() {
@@ -78,7 +87,7 @@ default_prose() {
 if [ -n "$out_file" ]; then
   if [ -z "${STUB_CODEX_EMPTY:-}" ]; then
     body="${STUB_CODEX_OUT:-$(default_hallazgos)}"
-    printf '{"hallazgos":%s}' "$body" > "$out_file"
+    printf '{"%s":%s}' "$clave" "$body" > "$out_file"
   fi
 else
   printf '%s' "${STUB_CODEX_OUT:-$(default_prose)}"

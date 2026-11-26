@@ -36,13 +36,22 @@ if [ "${1:-}" = "models" ]; then
 fi
 
 json_mode=0
+clave="hallazgos"
+prev=""
 for a in "$@"; do
   case "$a" in
     --output-format|--json-schema) json_mode=1 ;;
   esac
+  # Clave envolvente: la que exige el esquema recibido (hallazgos o veredictos).
+  [ "$prev" = "--json-schema" ] && clave="$(jq -r '.required[0]' "$a")"
+  prev="$a"
 done
 
 default_hallazgos() {
+  if [ "$clave" = "veredictos" ]; then
+    printf '%s' '[{"punto":"P1","veredicto":"mantengo","argumento":"stub"}]'
+    return
+  fi
   printf '%s' '[{"severidad":"menor","ubicacion":"foo.py:1","problema":"sin docstring","propuesta":"anadir docstring"}]'
 }
 default_prose() {
@@ -52,7 +61,7 @@ default_prose() {
 if [ -z "${STUB_AGY_EMPTY:-}" ]; then
   if [ "$json_mode" = "1" ]; then
     body="${STUB_AGY_OUT:-$(default_hallazgos)}"
-    printf '{"structured_output":{"hallazgos":%s}}' "$body"
+    printf '{"structured_output":{"%s":%s}}' "$clave" "$body"
   else
     printf '%s' "${STUB_AGY_OUT:-$(default_prose)}"
   fi

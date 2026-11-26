@@ -20,8 +20,11 @@ repetible y global.
   - **Qwen** → tests, cobertura y rendimiento
   - **OpenCode** → seguridad y manejo de errores
   - **Claude** → síntesis, legibilidad, mantenibilidad + orquesta el debate
-- **Resolución por debate:** cada agente ve las críticas de los otros y rebate, cede o
-  matiza. Si tras 1–2 rondas no convergen, escala a decisión humana.
+- **Resolución por debate:** cada agente recibe la entrada revisada, sus
+  hallazgos de la ronda 0 y las críticas de los otros, y da un veredicto JSON
+  por punto (`mantengo` | `rebato` | `cedo`). En la ronda 2 ve además los
+  veredictos de la 1. El script no admite una ronda 3: sin convergencia,
+  escala a decisión humana.
 
 ## Estado
 
@@ -96,8 +99,14 @@ dispare automáticamente en puntos críticos. Por debajo:
 ```bash
 bash consenso.sh round0 --workdir .        # revisión independiente (elenco detectado)
 bash consenso.sh round0 --plan plan.md --workdir .   # revisión de un plan (prosa)
-bash consenso.sh debate --points p.txt --run-dir .consenso/<ts>   # ronda de debate
+bash consenso.sh debate --points p.json --run-dir .consenso/<ts> --round 1   # debate (1 o 2)
 ```
+
+`p.json` es un array de `{"id","punto","posturas"}`. Cada agente escribe
+`debate-<N>-<id>.json`; si uno falla, relanzar la misma ronda corre solo a los
+que faltan. En un registro propio, `json.extract` usa `{CLAVE}` (p.ej.
+`.structured_output.{CLAVE}`) para que el mismo agente extraiga hallazgos y
+veredictos.
 
 Si las rondas entran en bucle de casos límite (cada arreglo abre otro caso
 hipotético en la misma zona), la skill cambia los roles. Escribe un enunciado
