@@ -125,6 +125,25 @@ dudosos, alternativas más simples) en lugar de código.
    Los casos límite con entradas reales o de impacto grave (seguridad, pérdida
    de datos) no cuentan para esta regla: se arreglan.
 
+## Tareas (`--task` / `--gate`)
+
+Si el trabajo es una tarea con varias etapas de revisión (el plan, luego el
+diff), lanza la ronda 0 con `--task <id> --gate <n>` (`<id>` en minúsculas,
+p.ej. el nombre del plan; gate 1 = plan, gate 2 = diff). El run queda en
+`.consenso/<id>/g<n>/v1/`. Tras la síntesis (y el debate, si lo hubo):
+
+1. Escribe `.consenso/<id>/g<n>/objeciones.json`:
+   `{"version": <k>, "objeciones": [{"id": "O1", "hallazgo": "…", "estado": "…", "nota": "…"}]}`.
+   `version` es la versión que acabas de sintetizar. `estado` ∈ `acordada` |
+   `resuelta` | `rechazada` | `abierta` | `fuera_de_alcance`. `nota`: quién lo
+   respaldó, quién cedió y por qué (puede ir vacía). Los ids continúan la
+   numeración existente y **nunca se renumeran**.
+2. Ejecuta `bash "${CLAUDE_PLUGIN_ROOT}/consenso.sh" report --task <id> --gate <n> --workdir <repo>`
+   y usa su salida como informe: no lo redactes a mano. Si `report` rechaza el
+   fichero, corrígelo y relánzalo (es idempotente).
+
+Sin `--task`, el informe se escribe a mano como abajo.
+
 ## Informe (siempre, 3 secciones + 1 opcional)
 
 - **Acordado** → aplicar (indica qué agentes lo respaldaron).

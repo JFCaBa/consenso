@@ -40,6 +40,8 @@ assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "fuera_de_alcance: 
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "hipotetica: true" "la regla del bucle usa el campo"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "debate-N-<id>.json" "la skill lee los veredictos JSON"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" '"posturas"' "la skill escribe los puntos en JSON"
+assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "objeciones.json" "la skill registra las objeciones de una tarea"
+assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" 'consenso.sh" report' "la skill genera el informe con report"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "**Revisor único**" "la skill sintetiza con un solo revisor"
 assert_contains "$(cat "$HERE/../skills/consenso/SKILL.md")" "solo de Claude" "la skill cubre el revisor único que falló"
 for f in "$HERE/../skills/consenso/SKILL.md" "$HERE/../README.md"; do

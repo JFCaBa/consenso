@@ -102,6 +102,12 @@ bash consenso.sh round0 --plan plan.md --workdir .   # revisión de un plan (pro
 bash consenso.sh debate --points p.json --run-dir .consenso/<ts> --round 1   # debate (1 o 2)
 ```
 
+Para una tarea con varias etapas, `round0 --task <id> --gate <n>` deja el run
+en `.consenso/<id>/g<n>/v1/`. Tras la síntesis, Claude escribe
+`g<n>/objeciones.json` (ids `O1`, `O2`… estables) y
+`bash consenso.sh report --task <id> --gate <n>` genera el informe de 4
+secciones con una tabla de estado en `v<k>/informe.md`.
+
 `p.json` es un array de `{"id","punto","posturas"}`. Cada agente escribe
 `debate-<N>-<id>.json`; si uno falla, relanzar la misma ronda corre solo a los
 que faltan. En un registro propio, `json.extract` usa `{CLAVE}` (p.ej.

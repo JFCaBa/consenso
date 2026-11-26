@@ -125,6 +125,12 @@ cp "$HERE/stubs/codex" "$tmp/llamante/bin/codex"
     bash "$SCRIPT" debate --points "$tmp/p1.json" --run-dir "$rd" >/dev/null )
 assert_contains "$(cat "$rd/debate-1-codex.json")" "rel-ok" "debate: binario relativo se resuelve desde el llamante"
 
+# --- Debate sobre un run de tarea: el repo se deriva igual ---
+rt="$tmp/repo-tarea/.consenso/demo/g1/v1"
+mkdir -p "$rt"; printf 'codex\nagy\n' > "$rt/agentes"; printf 'x\n' > "$rt/entrada"
+( cd / && STUB_CODEX_PWD_FILE="$tmp/pwd-t.txt" bash "$SCRIPT" debate --points "$tmp/p1.json" --run-dir "$rt" >/dev/null )
+assert_eq "$(cat "$tmp/pwd-t.txt")" "$(cd "$tmp/repo-tarea" && pwd)" "debate en run de tarea: cwd = repo"
+
 # --- Elenco de 3 con un agente via=prompt (fences) ---
 rd="$(nuevo_run)"
 printf 'codex\nagy\nqwen\n' > "$rd/agentes"

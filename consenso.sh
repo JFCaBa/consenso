@@ -314,6 +314,51 @@ consenso_run_dir() {
   printf '%s' "$dir"
 }
 
+consenso_validar_tarea() {
+  # $1 = task, $2 = gate. 0 si ambos vacíos (sin tarea) o ambos válidos.
+  local task="$1" gate="$2"
+  [ -z "$task" ] && [ -z "$gate" ] && return 0
+  if [ -z "$task" ] || [ -z "$gate" ]; then
+    echo "consenso: --task y --gate van juntos" >&2
+    return 64
+  fi
+  if ! printf '%s' "$task" | grep -Eq '^[a-z0-9][a-z0-9_-]*$'; then
+    echo "consenso: --task inválido: '$task' (minúsculas, dígitos, _ y -)" >&2
+    return 64
+  fi
+  if ! printf '%s' "$gate" | grep -Eq '^[1-9][0-9]*$'; then
+    echo "consenso: --gate inválido: '$gate' (entero >= 1)" >&2
+    return 64
+  fi
+}
+
+consenso_tarea_dir() {
+  # $1 = workdir, $2 = task, $3 = gate. Imprime <workdir>/.consenso/<task>/g<gate>.
+  printf '%s/.consenso/%s/g%s' "$1" "$2" "$3"
+}
+
+consenso_reservar_version() {
+  # $1 = workdir, $2 = task, $3 = gate, $4 = versión. Crea g<gate>/v<k> con
+  # mkdir sin -p (atómico: de dos llamadas simultáneas solo una lo crea) e
+  # imprime la ruta. rc 64 si ya existe.
+  local gdir="$(consenso_tarea_dir "$1" "$2" "$3")" k="$4"
+  mkdir -p "$gdir" || return 2
+  [ -e "$1/.consenso/.gitignore" ] || printf '*\n' > "$1/.consenso/.gitignore"
+  if ! mkdir "$gdir/v$k" 2>/dev/null; then
+    if [ ! -d "$gdir/v$k" ]; then
+      echo "consenso: no se pudo crear $gdir/v$k" >&2
+      return 2
+    fi
+    if [ -f "$gdir/v$k/completo" ]; then
+      echo "consenso: la tarea $2, gate $3, ya tiene v$k" >&2
+    else
+      echo "consenso: v$k incompleto (run interrumpido o en curso): borra $gdir/v$k y relanza" >&2
+    fi
+    return 64
+  fi
+  printf '%s' "$gdir/v$k"
+}
+
 consenso_init_log() {
   # $1 = run_dir, $2 = titulo.
   local dir="$1"
@@ -564,8 +609,16 @@ cmd_round0() {
   local workdir="."
   local diff_file=""
   local plan_file=""
+  local task="" gate=""
   while [ $# -gt 0 ]; do
     case "$1" in
+      --task|--gate)
+        if [ $# -lt 2 ]; then
+          echo "round0: falta valor para $1" >&2
+          return 64
+        fi
+        if [ "$1" = "--task" ]; then task="$2"; else gate="$2"; fi
+        shift 2 ;;
       --workdir)
         if [ $# -lt 2 ]; then
           echo "round0: falta valor para --workdir" >&2
@@ -589,6 +642,7 @@ cmd_round0() {
   done
 
   consenso_registry_validar "$CONSENSO_REGISTRY" || return $?
+  consenso_validar_tarea "$task" "$gate" || return $?
 
   if [ -n "$plan_file" ] && [ -n "$diff_file" ]; then
     echo "round0: --plan y --diff son excluyentes" >&2
@@ -606,7 +660,11 @@ cmd_round0() {
   fi
 
   local run_dir titulo
-  run_dir="$(consenso_run_dir "$workdir")"
+  if [ -n "$task" ]; then
+    run_dir="$(consenso_reservar_version "$workdir" "$task" "$gate" 1)" || { local rc_res=$?; rm -f "$content_tmp"; return "$rc_res"; }
+  else
+    run_dir="$(consenso_run_dir "$workdir")"
+  fi
   # Absoluto: los agentes se lanzan con cwd=$workdir (ver abajo).
   run_dir="$(cd "$run_dir" && pwd)"
   titulo="Ronda 0 — revisión independiente"
@@ -616,6 +674,7 @@ cmd_round0() {
   # la entrada revisada para que el debate se la dé a los agentes (memoria).
   printf '%s' "$modo" > "$run_dir/modo"
   cp "$content_tmp" "$run_dir/entrada"
+  [ -n "$task" ] && consenso_log_append "$run_dir" "Tarea: $task · gate $gate · v1"
 
   # Ronda 0 corre el elenco detectado EN PARALELO (spec: "en paralelo"). Cada
   # agente escribe en su propio fichero, así que no hay colisión.
@@ -666,6 +725,8 @@ cmd_round0() {
   done
 
   rm -f "$content_tmp"
+  # Marca de run terminado: distingue una versión completa de una interrumpida.
+  : > "$run_dir/completo"
   # Última línea de stdout: el run_dir, para que Claude sepa dónde leer.
   printf '%s\n' "$run_dir"
 }
@@ -873,6 +934,113 @@ cmd_debate() {
   printf '%s\n' "$run_dir"
 }
 
+consenso_validar_objeciones() {
+  # $1 = objeciones.json. 0 si cumple el contrato: {version, objeciones} con
+  # version entero >= 1 y objeciones de {id, hallazgo, estado, nota}; id
+  # O<n> sin ceros a la izquierda y sin repetir.
+  jq -e 'type=="object"
+         and (.version | type=="number" and . >= 1 and . == floor)
+         and (.objeciones | type=="array")
+         and all(.objeciones[]; type=="object"
+           and (.id | type=="string" and test("^O[1-9][0-9]*$"))
+           and (.hallazgo | type=="string")
+           and (.nota | type=="string")
+           and (.estado | . == "abierta" or . == "acordada" or . == "resuelta" or . == "rechazada" or . == "fuera_de_alcance"))
+         and ([.objeciones[].id] | length == (unique | length))' "$1" >/dev/null 2>&1
+}
+
+consenso_ultima_version() {
+  # $1 = dir del gate. Imprime el mayor k de los v<k> (numérico: v10 > v9), o
+  # nada si no hay versiones.
+  local d k max=""
+  for d in "$1"/v*; do
+    [ -d "$d" ] || continue
+    k="${d##*/v}"
+    case "$k" in ''|*[!0-9]*) continue ;; esac
+    if [ -z "$max" ] || [ "$k" -gt "$max" ]; then max="$k"; fi
+  done
+  printf '%s' "$max"
+}
+
+consenso_informe() {
+  # $1 = objeciones.json, $2 = gate, $3 = versión. Imprime el informe de 4
+  # secciones (Fuera de alcance solo si hay) y la tabla id | estado | hallazgo.
+  jq -r --arg g "$2" --arg v "$3" '
+    def plano: gsub("\n"; " ");
+    def celda: plano | gsub("\\|"; "\\|");
+    def item: "- **\(.id)** \(.hallazgo | plano)" + (if .nota != "" then " — \(.nota | plano)" else "" end);
+    def seccion(t; ests): ([.objeciones[] | select(.estado as $e | ests | index($e) != null)]) as $xs
+      | "### \(t)\n" + (if ($xs | length) == 0 then "- (ninguno)" else ($xs | map(item) | join("\n")) end) + "\n";
+    "## Informe (gate \($g), v\($v))\n",
+    seccion("Acordado"; ["acordada"]),
+    seccion("Resuelto por debate"; ["resuelta", "rechazada"]),
+    seccion("Sin resolver"; ["abierta"]),
+    (if any(.objeciones[]; .estado == "fuera_de_alcance") then seccion("Fuera de alcance"; ["fuera_de_alcance"]) else empty end),
+    "#### Estado por objeción\n",
+    "| id | estado | hallazgo |",
+    "|---|---|---|",
+    (.objeciones[] | "| \(.id) | \(.estado) | \(.hallazgo | celda) |")' "$1"
+}
+
+cmd_report() {
+  # Informe de una tarea y gate a partir de g<N>/objeciones.json: lo escribe
+  # en v<última>/informe.md (sobrescribe), lo imprime y deja un puntero en log.md.
+  local workdir="." task="" gate=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --task|--gate|--workdir)
+        if [ $# -lt 2 ]; then
+          echo "report: falta valor para $1" >&2
+          return 64
+        fi
+        case "$1" in
+          --task) task="$2" ;;
+          --gate) gate="$2" ;;
+          --workdir) workdir="$2" ;;
+        esac
+        shift 2 ;;
+      *) echo "report: opción desconocida: $1" >&2; return 64 ;;
+    esac
+  done
+  if [ -z "$task" ]; then
+    echo "report: falta --task (y --gate)" >&2
+    return 64
+  fi
+  consenso_validar_tarea "$task" "$gate" || return $?
+
+  local gdir obj k vdir
+  gdir="$(consenso_tarea_dir "$workdir" "$task" "$gate")"
+  obj="$gdir/objeciones.json"
+  k="$(consenso_ultima_version "$gdir")"
+  if [ -z "$k" ]; then
+    echo "report: la tarea $task, gate $gate, no tiene versiones (lanza round0 --task $task --gate $gate)" >&2
+    return 64
+  fi
+  if [ ! -f "$obj" ]; then
+    echo "report: falta $obj; escríbelo tras la síntesis: {\"version\": $k, \"objeciones\": [{\"id\": \"O1\", \"hallazgo\", \"estado\", \"nota\"}]}" >&2
+    return 64
+  fi
+  if ! consenso_validar_objeciones "$obj"; then
+    echo "report: $obj no cumple el contrato (version, ids O<n> únicos, estado válido, nota)" >&2
+    return 65
+  fi
+  local v_obj
+  v_obj="$(jq -r '.version' "$obj")"
+  if [ "$v_obj" != "$k" ]; then
+    echo "report: objeciones.json es de v$v_obj y la última es v$k; actualízalo tras sintetizar v$k" >&2
+    return 64
+  fi
+
+  vdir="$gdir/v$k"
+  if [ ! -f "$vdir/completo" ]; then
+    echo "report: v$k está incompleta (run interrumpido o en curso); termínala o borra $vdir" >&2
+    return 64
+  fi
+  consenso_informe "$obj" "$gate" "$k" > "$vdir/informe.md" || return 2
+  consenso_log_append "$vdir" "- informe: informe.md ($(jq -r '"\(.objeciones | length) objeciones: \([.objeciones[] | select(.estado == "abierta")] | length) abiertas"' "$obj"))"
+  cat "$vdir/informe.md"
+}
+
 cmd_alternativa() {
   # Rediseño a ciegas: un agente (por defecto el de mayor prioridad detectado,
   # normalmente codex) diseña su propia solución leyendo SOLO el enunciado del
@@ -983,7 +1151,8 @@ main() {
     debate) cmd_debate "$@" ;;
     alternativa) cmd_alternativa "$@" ;;
     doctor) cmd_doctor "$@" ;;
-    "") echo "uso: consenso.sh <round0|debate|alternativa|doctor> [opciones]" >&2; return 64 ;;
+    report) cmd_report "$@" ;;
+    "") echo "uso: consenso.sh <round0|debate|report|alternativa|doctor> [opciones]" >&2; return 64 ;;
     *) echo "consenso: subcomando desconocido: $sub" >&2; return 64 ;;
   esac
 }

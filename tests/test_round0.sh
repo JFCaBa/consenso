@@ -150,5 +150,34 @@ assert_exit 64 bash "$SCRIPT" round0 --workdir
 assert_exit 64 bash "$SCRIPT" round0 --diff
 assert_exit 64 bash "$SCRIPT" round0 --plan
 
+# --- Tareas: --task/--gate -> .consenso/<T>/g<N>/v1 ---
+wt="$tmp/tarea"; mkdir -p "$wt"
+out_t="$(CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --task demo --gate 1 --diff "$tmp/d.txt" --workdir "$wt")"
+rd_t="$(printf '%s\n' "$out_t" | tail -1)"
+assert_eq "$rd_t" "$(cd "$wt" && pwd)/.consenso/demo/g1/v1" "round0 de tarea imprime g1/v1 absoluto"
+for f in entrada agentes log.md completo; do
+  assert_exit 0 test -f "$rd_t/$f"
+done
+assert_exit 0 test -f "$wt/.consenso/.gitignore"
+assert_contains "$(cat "$rd_t/log.md")" "Tarea: demo · gate 1 · v1" "el log dice tarea, gate y versión"
+cp "$rd_t/log.md" "$tmp/log-antes.md"
+err_t="$(CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --task demo --gate 1 --diff "$tmp/d.txt" --workdir "$wt" 2>&1 >/dev/null)"
+assert_contains "$err_t" "ya tiene v1" "repetir avisa de que v1 existe"
+assert_exit 64 env CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --task demo --gate 1 --diff "$tmp/d.txt" --workdir "$wt"
+assert_exit 0 cmp -s "$rd_t/log.md" "$tmp/log-antes.md"
+rm -f "$rd_t/completo"
+err_t="$(CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --task demo --gate 1 --diff "$tmp/d.txt" --workdir "$wt" 2>&1 >/dev/null)"
+assert_contains "$err_t" "incompleto" "v1 sin completo se dice incompleto"
+for args in "--task demo" "--gate 1" "--task Mal_Id --gate 1" "--task demo --gate 0" "--task demo --gate 01" "--task demo --gate x"; do
+  # shellcheck disable=SC2086
+  assert_exit 64 env CONSENSO_AGENTS=codex bash "$SCRIPT" round0 $args --diff "$tmp/d.txt" --workdir "$wt"
+done
+assert_exit 64 env CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --task "mal id" --gate 1 --diff "$tmp/d.txt" --workdir "$wt"
+# Dos round0 simultáneos sobre la misma tarea y gate: solo uno reserva v1.
+( STUB_CODEX_SLEEP=1 CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --task conc --gate 1 --diff "$tmp/d.txt" --workdir "$wt" >/dev/null 2>&1; echo $? > "$tmp/rc-a" ) &
+( STUB_CODEX_SLEEP=1 CONSENSO_AGENTS=codex bash "$SCRIPT" round0 --task conc --gate 1 --diff "$tmp/d.txt" --workdir "$wt" >/dev/null 2>&1; echo $? > "$tmp/rc-b" ) &
+wait
+assert_eq "$(sort "$tmp/rc-a" "$tmp/rc-b" | tr '\n' ' ')" "0 64 " "concurrencia: uno gana, otro rc 64"
+
 rm -rf "$tmp"
 echo "OK test_round0"
